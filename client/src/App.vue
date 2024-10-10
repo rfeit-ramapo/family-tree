@@ -1,6 +1,7 @@
 // client/src/App.vue
 
 <script setup lang="ts">
+/* PREVIOUS SCRIPT
 import { ref } from "vue";
 
 // Global constant containing the API base URL -> /api
@@ -33,15 +34,29 @@ async function fetchAPI() {
     isLoading.value = false;
   }
 }
+*/
+
+// CURRENT SCRIPT
+import "bootstrap/dist/css/bootstrap.min.css";
+import LoginView from "./components/LoginView.vue";
 </script>
 
-<template>
+<template lang="pug">
   <!-- Button to trigger the fetchAPI function -->
-  <button @click="fetchAPI">Fetch</button>
+  <!-- <button @click="fetchAPI">Fetch</button> -->
 
   <!-- Display loading message while fetching data -->
-  <p v-if="isLoading">Loading...</p>
+  <!-- <p v-if="isLoading">Loading...</p> -->
 
   <!-- Display the response message if available -->
-  <p v-else-if="message">{{ message }}</p>
+  <!-- <p v-else-if="message">{{ message }}</p> -->
+  .img-box
+    img(alt="Vue logo" src="./assets/logo.svg")
+  br
+  LoginView
 </template>
+
+<style lang="stylus">
+.img-box
+  margin-top 50px
+</style>
