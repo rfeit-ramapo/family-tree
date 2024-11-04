@@ -29,11 +29,13 @@ import {
   onMounted,
   onBeforeUnmount,
 } from "vue";
+import { useRouter } from "vue-router"; // Import useRouter
 import axiosInstance from "../axiosInstance";
 
 export default defineComponent({
   name: "SignInButton",
   setup() {
+    const router = useRouter(); // Get the router instance
     const isLoggedIn = ref(false);
     const user = reactive({ email: "", picture: "" });
     const isDropdownOpen = ref(false);
@@ -55,10 +57,14 @@ export default defineComponent({
         const res = await axiosInstance.post("/google-login", { token });
         user.email = res.data.email;
         user.picture = res.data.picture;
+        console.log(user);
         isLoggedIn.value = true;
 
         // Save user information in local storage
         localStorage.setItem("user", JSON.stringify(user));
+
+        // Redirect to the user's trees view
+        router.push({ name: "Trees" });
       } catch (error) {
         console.error("Login failed", error);
       }
@@ -77,6 +83,9 @@ export default defineComponent({
       localStorage.removeItem("user");
 
       console.log("User signed out");
+
+      // Redirect to home page
+      router.push({ name: "HomePage" });
     };
 
     const handleClickOutside = (event: MouseEvent) => {
