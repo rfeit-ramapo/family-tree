@@ -2,7 +2,7 @@
     .login-box
       .profile-wrapper(v-show="isLoggedIn" @click="toggleDropdown")
         .login-data
-          img.user-profile(:src="user.picture" alt="User Profile Picture")
+          img.user-profile(:src="user.picture" alt="User Profile Picture" referrerPolicy="no-referrer")
           p.logged-in-text {{ user.email }}
   
         .dropdown-menu(v-show="isDropdownOpen")
@@ -62,6 +62,7 @@ export default defineComponent({
 
         // Save user information in local storage
         localStorage.setItem("user", JSON.stringify(user));
+        localStorage.setItem("token", token);
 
         // Redirect to the user's trees view
         router.push({ name: "Trees" });

@@ -1,7 +1,7 @@
 <template lang="pug">
     UpperBanner
     .home-page
-      h1 Welcome to the Application
+      h1 Welcome to Family Roots!
       router-link(to="/login") Login
   </template>
 

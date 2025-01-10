@@ -51,13 +51,12 @@
 :global(#app)
   display block // Keep as block for consistent vertical flow
   margin 0 auto // Center the app horizontally within the body
-  padding 0 2rem // Maintain the padding as desired
+  padding 0 2rem // Maintain the padding as desired /
 </style>
 
 <script lang="ts">
 import UpperBanner from "./UpperBanner.vue";
 import { defineComponent, ref, onMounted, type Ref } from "vue";
-import axiosInstance from "@/axiosInstance";
 
 interface Tree {
   id: number;
@@ -75,8 +74,15 @@ export default defineComponent({
 
     onMounted(async () => {
       try {
-        const response = await fetch("/api/trees"); // Adjust this to match your endpoint
+        const token = localStorage.getItem("token");
+        const response = await fetch("/api/trees", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
         if (!response.ok) throw new Error("Failed to fetch trees");
+
         trees.value = await response.json();
       } catch (error) {
         console.error("Error fetching trees:", error);

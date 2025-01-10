@@ -5,6 +5,7 @@ import * as dotenv from "dotenv";
 import express from "express";
 import { OAuth2Client } from "google-auth-library";
 import DBManager from "./database/DBManager";
+import { DBTree } from "./database/models/Tree";
 
 dotenv.config();
 const app = express();
@@ -39,6 +40,51 @@ app.post("/api/google-login", async (req, res) => {
       .json({ message: "User authenticated", userId, email, picture });
   } catch {
     res.status(401).json({ message: "Invalid Google token" });
+  }
+});
+
+app.get("/api/trees", async (req, res) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    res.status(401).json({
+      message: "Unauthorized: Missing or malformed Authorization header",
+    });
+    return;
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  console.log("Auth header:", authHeader);
+  console.log("Extracted token:", token);
+
+  if (!token) {
+    res.status(401).json({ message: "Unauthorized: Missing token" });
+    return;
+  }
+
+  try {
+    // Verify the token
+    const ticket = await authClient.verifyIdToken({
+      idToken: token,
+      audience: process.env.AUTH_CLIENT as string,
+    });
+    const payload = ticket.getPayload();
+    const userId = payload!.sub; // User's unique Google ID
+
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized: Invalid token" });
+      return;
+    }
+
+    // Fetch trees for the user from the database
+    const trees = await DBTree.get(userId);
+    res.status(200).json(trees);
+    return;
+  } catch (error) {
+    console.error("Error verifying token or fetching trees:", error);
+    res.status(500).json({ message: "Failed to fetch trees" });
+    return;
   }
 });
 
