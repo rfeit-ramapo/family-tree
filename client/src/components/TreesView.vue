@@ -1,19 +1,59 @@
 <template lang="pug">
-    UpperBanner
-    .tree-grid
-      .tree-card(v-for="tree in trees" :key="tree.id")
-        h3.tree-name {{ tree.name }}
-        p Last modified: {{ tree.lastModified }}
-        // Additional tree information can go here
-  </template>
+  UpperBanner
+    // If there is an error fetching trees, show an error message
+  .error-message(v-if="errorMessage")
+    p {{ errorMessage }}
+  // If there are no trees, show a message to create a new one
+  .no-trees-message(v-if="!errorMessage && trees.length === 0")
+    p You do not currently have any trees. Press '+' to create a new tree!
+
+  // Modal for creating a new tree
+  .modal-overlay(v-if="showModal")
+    .modal-box
+      h3 Create a new tree
+      input(type="text" placeholder="Enter tree name" v-model="newTreeName")
+      .modal-buttons
+        button.modal-buttons(@click="showModal = false") Cancel
+        button.modal-buttons(@click="createTree") Confirm
+
+  .tree-grid
+    // Otherwise, display the trees
+    .tree-card(v-for="tree in trees" :key="tree.id")
+      h3.tree-name {{ tree.name }}
+      p Last accessed: {{ formatDate(tree.lastModified) }}
+      // Additional tree information can go here
+
+  // Floating '+' button to create a new tree
+  button.add-tree-button(@click="showModal = true") +
+</template>
 
 <style lang="stylus" scoped>
+.error-message
+  background-color #f8d7da
+  color #721c24
+  padding 16px
+  border-radius 8px
+  box-shadow 0 4px 8px rgba(0, 0, 0, 0.1)
+  margin-bottom 16px
+  text-align center
+  margin-top 100px // Push message down below UpperBanner
+
+.no-trees-message
+  background-color #f3f3f3
+  color #495057
+  padding 16px
+  border-radius 8px
+  box-shadow 0 4px 8px rgba(0, 0, 0, 0.1)
+  margin-bottom 16px
+  text-align center
+  margin-top 100px // Push message down below UpperBanner
+
 .tree-grid
   display grid
   grid-template-columns repeat(auto-fill, 275px) // Allows for responsive columns
   gap 16px // Ensures constant spacing between panels
   padding 16px
-  width calc(100% - 32px) // Accounts for padding to fill the container
+  width calc(100% - 32px) // Accounts for padding to fill the container6
   box-sizing border-box // Helps manage padding and width interactions
   margin-top 100px // Push panels down below UpperBanner
   position relative // Helps maintain consistent layout
@@ -52,6 +92,85 @@
   display block // Keep as block for consistent vertical flow
   margin 0 auto // Center the app horizontally within the body
   padding 0 2rem // Maintain the padding as desired /
+
+.add-tree-button
+  position fixed
+  bottom 24px
+  right 24px
+  background-color #2e8b57
+  color white
+  border none
+  border-radius 50%
+  width 60px
+  height 60px
+  font-size 2em
+  display flex
+  align-items center
+  justify-content center
+  box-shadow 0 4px 8px rgba(0, 0, 0, 0.2)
+  cursor pointer
+  transition all 0.3s ease
+  &:hover
+    transform scale(1.1)
+    box-shadow 0 6px 12px rgba(0, 0, 0, 0.3)
+
+.modal-overlay
+  position fixed
+  inset 0
+  background-color rgba(0, 0, 0, 0.7)
+  display flex
+  justify-content center
+  align-items center
+  z-index 1000
+
+.modal-box
+  background-color white
+  padding 24px
+  border-radius 8px
+  box-shadow 0 8px 16px rgba(0, 0, 0, 0.2)
+  max-width 400px
+  width 90% // Ensure it fits smaller screens
+  text-align left // Align content to the left for a cleaner layout
+  position relative
+
+  input[type="text"]
+    width 100% // Makes the input take up the full width of the modal
+    padding 10px // Add some padding for a clean look
+    margin-top 16px // Space between the input and any content above
+    margin-bottom 16px // Space between the input and any content below
+    border 1px solid #ccc
+    border-radius 4px
+    font-size 1em
+    box-sizing border-box // Ensures padding and border are included in width
+
+
+.modal-buttons
+  display flex
+  justify-content space-between // Ensure buttons are evenly spaced
+  gap 8px // Adds spacing between buttons
+  margin-top 10px
+
+button
+  padding 10px 16px
+  border none
+  border-radius 4px
+  cursor pointer
+  font-size 1em
+  font-weight bold
+  flex 1 // Make buttons equal in size
+  text-align center
+  &:nth-child(1)
+    background-color #f8d7da
+    color #721c24
+    transition background-color 0.3s ease
+    &:hover
+      background-color #f5b5b8
+  &:nth-child(2)
+    background-color #2e8b57
+    color white
+    transition background-color 0.3s ease
+    &:hover
+      background-color #247a48
 </style>
 
 <script lang="ts">
@@ -59,9 +178,11 @@ import UpperBanner from "./UpperBanner.vue";
 import { defineComponent, ref, onMounted, type Ref } from "vue";
 
 interface Tree {
-  id: number;
+  creator: string;
   name: string;
-  lastModified: string;
+  id: string;
+  dateCreated: Date;
+  lastModified: Date;
 }
 
 export default defineComponent({
@@ -71,8 +192,11 @@ export default defineComponent({
   },
   setup() {
     const trees: Ref<Tree[]> = ref([]);
+    const errorMessage: Ref<string | null> = ref(null);
+    const showModal = ref(false);
+    const newTreeName = ref("");
 
-    onMounted(async () => {
+    const fetchTrees = async () => {
       try {
         const token = localStorage.getItem("token");
         const response = await fetch("/api/trees", {
@@ -84,20 +208,64 @@ export default defineComponent({
         if (!response.ok) throw new Error("Failed to fetch trees");
 
         trees.value = await response.json();
+        console.log(JSON.stringify(trees.value, null, 2));
+        errorMessage.value = null; // Clear any previous error
       } catch (error) {
         console.error("Error fetching trees:", error);
-        // Provide dummy data as fallback
-        trees.value = [
-          { id: 1, name: "Oak Tree", lastModified: "2023-10-12" },
-          { id: 2, name: "Pine Tree", lastModified: "2023-10-15" },
-          { id: 3, name: "Maple Tree", lastModified: "2023-10-20" },
-        ];
+        errorMessage.value =
+          "There was an error fetching your trees. Please try again later.";
+        trees.value = []; // Ensure trees array is empty if there's an error
       }
-    });
+    };
+
+    const createTree = async () => {
+      if (!newTreeName.value.trim()) {
+        alert("Tree name cannot be empty. Please enter a valid name.");
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("/api/trees", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ name: newTreeName.value }),
+        });
+
+        if (!response.ok) throw new Error("Failed to create tree");
+
+        newTreeName.value = ""; // Clear the input field
+        showModal.value = false; // Close the modal
+        await fetchTrees(); // Refresh the tree list
+      } catch (error) {
+        console.error("Error creating tree:", error);
+        alert("Failed to create tree. Please try again.");
+      }
+    };
+
+    onMounted(fetchTrees);
 
     return {
       trees,
+      errorMessage,
+      showModal,
+      newTreeName,
+      createTree,
     };
+  },
+
+  methods: {
+    formatDate(date: string) {
+      const options: Intl.DateTimeFormatOptions = {
+        year: "numeric", // "2025"
+        month: "short", // "January"
+        day: "numeric", // "10"
+      };
+      return new Date(date).toLocaleDateString("en-US", options);
+    },
   },
 });
 </script>

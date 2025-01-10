@@ -2,6 +2,7 @@ import { DateTime, QueryResult } from "neo4j-driver";
 import DBManager from "../DBManager";
 import fs from "fs";
 import path from "path";
+import { v4 as uuidv4 } from "uuid";
 
 export class DBTree extends DBManager {
   // Convert query result into an array of Trees
@@ -12,11 +13,11 @@ export class DBTree extends DBManager {
       recObj.dateCreated = (
         recObj.dateCreated as unknown as DateTime
       ).toStandardDate();
-      if (recObj.lastAccessed)
-        recObj.lastAccessed = (
-          recObj.lastAccessed as unknown as DateTime
+      if (recObj.lastModified)
+        recObj.lastModified = (
+          recObj.lastModified as unknown as DateTime
         ).toStandardDate();
-      else recObj.lastAccessed = recObj.dateCreated;
+      else recObj.lastModified = recObj.dateCreated;
 
       return recObj;
     }) as Required<Tree>[];
@@ -66,7 +67,7 @@ export class DBTree extends DBManager {
     return this.formatResult(result);
   }
 
-  static async updateAccess(treeId: string) {
+  static async updateModified(treeId: string) {
     const session = this.driver.session({ database: DBManager.db_name });
 
     // Path to the Cypher query file
@@ -76,7 +77,7 @@ export class DBTree extends DBManager {
       "..",
       "..",
       "cypher_queries",
-      "update_access.cypher"
+      "update_modified.cypher"
     );
 
     const query = fs.readFileSync(queryPath, "utf-8"); // Read the query string
@@ -105,7 +106,7 @@ export class DBTree extends DBManager {
 
     try {
       await session.executeWrite((t) =>
-        t.run(query, { userId: creator, name: treeName })
+        t.run(query, { creator, name: treeName, id: uuidv4() })
       );
     } finally {
       await session.close();
@@ -120,5 +121,5 @@ export default interface Tree {
   name: string;
   id: string;
   dateCreated?: Date;
-  lastAccessed?: Date;
+  lastModified?: Date;
 }

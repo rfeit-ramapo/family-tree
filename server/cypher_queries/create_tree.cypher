@@ -1,7 +1,6 @@
-MERGE (u:User {id: $userId})
+MERGE (u:User {id: $creator})
 MERGE (t:Tree {name: $name})
 ON CREATE
-SET t.id = apoc.create.uuid(),  // Assign a random UUID
-    t.dateCreated = datetime()
+SET t.id = $id, t.dateCreated = datetime()
 MERGE (t)<-[:OWNS_TREE]-(u)
 RETURN t{.*} AS tree

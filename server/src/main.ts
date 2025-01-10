@@ -55,9 +55,6 @@ app.get("/api/trees", async (req, res) => {
 
   const token = authHeader.split(" ")[1];
 
-  console.log("Auth header:", authHeader);
-  console.log("Extracted token:", token);
-
   if (!token) {
     res.status(401).json({ message: "Unauthorized: Missing token" });
     return;
@@ -84,6 +81,58 @@ app.get("/api/trees", async (req, res) => {
   } catch (error) {
     console.error("Error verifying token or fetching trees:", error);
     res.status(500).json({ message: "Failed to fetch trees" });
+    return;
+  }
+});
+
+app.post("/api/trees", async (req, res) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    res.status(401).json({
+      message: "Unauthorized: Missing or malformed Authorization header",
+    });
+    return;
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  if (!token) {
+    res.status(401).json({ message: "Unauthorized: Missing token" });
+    return;
+  }
+
+  try {
+    // Verify the token
+    const ticket = await authClient.verifyIdToken({
+      idToken: token,
+      audience: process.env.AUTH_CLIENT as string,
+    });
+    const payload = ticket.getPayload();
+    const userId = payload!.sub; // User's unique Google ID
+
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized: Invalid token" });
+      return;
+    }
+
+    // Get the tree name from the request body
+    const { name } = req.body;
+
+    if (!name || name.trim() === "") {
+      res.status(400).json({ message: "Tree name cannot be empty" });
+      return;
+    }
+
+    // Create the tree in the database
+    const newTree = await DBTree.createTree(userId, name);
+
+    // Return the newly created tree
+    res.status(201).json(newTree);
+    return;
+  } catch (error) {
+    console.error("Error verifying token or creating tree:", error);
+    res.status(500).json({ message: "Failed to create tree" });
     return;
   }
 });
