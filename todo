@@ -1,0 +1,29 @@
+next steps:
+- add a right click dropdown menu to rename the tree
+- add a right click dropdown menu to delete the tree
+- add a sidebar to switch between owned and shared trees
+- do not allow renaming or deletion of shared trees
+- when a tree is clicked on, take the user to the tree page
+
+- if there are no entries on the tree, automatically add a blank one and make this the focal point
+- add functionality for zooming and scrolling around the canvas
+- add a toolbar to the side of the canvas
+    - select tool (default)
+    - add tool
+    - connect tool (create relationship between two nodes)
+    - delete tool
+    - undo
+    - redo
+- right click options
+    - view
+    - edit
+    - delete
+    - add...
+        child
+        parent
+        spouse
+    - connect to...
+    - disconnect from...
+    - make focal point
+- top bar with name of tree and share options
+- also metadata: last modified, undo/redo, edit history, etc.
