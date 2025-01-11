@@ -234,6 +234,46 @@ app.post("/api/trees/delete", async (req, res) => {
   }
 });
 
+app.get("/api/tree/:treeId", async (req, res) => {
+  const { treeId } = req.params;
+  const authHeader = req.headers.authorization;
+
+  let userId: string | null = null;
+
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.split(" ")[1];
+
+    // Verify the token
+    try {
+      const ticket = await authClient.verifyIdToken({
+        idToken: token,
+        audience: process.env.AUTH_CLIENT as string,
+      });
+      const payload = ticket.getPayload();
+      userId = payload?.sub || null; // User's unique Google ID
+    } catch (error) {
+      console.error("Token verification failed:", error);
+    }
+  }
+
+  let tree;
+  try {
+    // Fetch the tree from the database
+    tree = await DBTree.getTree(treeId);
+  } catch (error) {
+    console.error("Error fetching tree:", error);
+    res.status(500).json({ message: "Failed to fetch tree" });
+    return;
+  }
+
+  if (!tree.isPublic && tree.creator !== userId) {
+    res.status(403).json({ message: "Unauthorized: Tree is private" });
+    return;
+  }
+
+  res.status(200).json(tree);
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

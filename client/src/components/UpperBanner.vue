@@ -2,6 +2,7 @@
     .upper-banner
       .banner-button
         SignInButton
+    .page-content
   </template>
 
 <script lang="ts">
@@ -38,4 +39,8 @@ export default {
   padding 5px 10px
   position fixed
   right 0
+
+.page-content
+  margin-top 80px
+  padding 20px
 </style>

@@ -38,7 +38,7 @@
 
   .tree-grid
     // Otherwise, display the trees
-    .tree-card(v-for="tree in trees" :key="tree.id" @contextmenu.prevent="showContextMenu($event, tree)")
+    .tree-card(v-for="tree in trees" :key="tree.id" @contextmenu.prevent="showContextMenu($event, tree)" @click="viewTree(tree.id)")
       h3.tree-name {{ tree.name }}
       p Last accessed: {{ formatDate(tree.lastModified) }}
       // Additional tree information can go here
@@ -52,140 +52,6 @@
   button.add-tree-button(@click="showCreateModal") +
 </template>
 
-<style lang="stylus" scoped>
-.error-message
-  background-color #f8d7da
-  color #721c24
-  padding 16px
-  border-radius 8px
-  box-shadow 0 4px 8px rgba(0, 0, 0, 0.1)
-  margin-bottom 16px
-  text-align center
-  margin-top 100px // Push message down below UpperBanner
-
-.no-trees-message
-  background-color #f3f3f3
-  color #495057
-  padding 16px
-  border-radius 8px
-  box-shadow 0 4px 8px rgba(0, 0, 0, 0.1)
-  margin-bottom 16px
-  text-align center
-  margin-top 100px // Push message down below UpperBanner
-
-.tree-grid
-  display grid
-  grid-template-columns repeat(auto-fill, 275px) // Allows for responsive columns
-  gap 16px // Ensures constant spacing between panels
-  padding 16px
-  width calc(100% - 32px) // Accounts for padding to fill the container6
-  box-sizing border-box // Helps manage padding and width interactions
-  margin-top 100px // Push panels down below UpperBanner
-  position relative // Helps maintain consistent layout
-
-.tree-card
-  .tree-name
-    white-space nowrap // Prevent line breaks
-    overflow hidden // Hide overflow text
-    text-overflow ellipsis // Add ellipsis for overflow text
-    font-size 2em
-  background-color #f3f3f3
-  padding 16px
-  border-radius 8px
-  box-shadow 0 4px 8px rgba(0, 0, 0, 0.1)
-  transition all 0.3s ease
-  display flex
-  flex-direction column
-  align-items flex-start
-  width 275px // Fixed width for each card
-  height auto
-  min-height 120px
-  &:hover
-    box-shadow 0 6px 12px rgba(0, 0, 0, 0.15)
-    transform scale(1.02)
-
-:global(UpperBanner)
-  position relative // Ensure it stacks normally
-  z-index 1 // Ensure it is above the grid
-
-// Override styles for the body and app within this component
-:global(body)
-  display block // Change back to block
-  margin 0 // Remove any margin
-
-:global(#app)
-  display block // Keep as block for consistent vertical flow
-  margin 0 auto // Center the app horizontally within the body
-  padding 0 2rem // Maintain the padding as desired /
-
-.add-tree-button
-  position fixed
-  bottom 24px
-  right 24px
-  background-color #2e8b57
-  color white
-  border none
-  border-radius 50%
-  width 60px
-  height 60px
-  font-size 2em
-  display flex
-  align-items center
-  justify-content center
-  box-shadow 0 4px 8px rgba(0, 0, 0, 0.2)
-  cursor pointer
-  transition all 0.3s ease
-  &:hover
-    transform scale(1.1)
-    box-shadow 0 6px 12px rgba(0, 0, 0, 0.3)
-
-button
-  padding 10px 16px
-  border none
-  border-radius 4px
-  cursor pointer
-  font-size 1em
-  font-weight bold
-  flex 1 // Make buttons equal in size
-  text-align center
-  &:nth-child(1)
-    background-color #f8d7da
-    color #721c24
-    transition background-color 0.3s ease
-    &:hover
-      background-color #f5b5b8
-  &:nth-child(2)
-    background-color #2e8b57
-    color white
-    transition background-color 0.3s ease
-    &:hover
-      background-color #247a48
-
-.tree-context-menu
-  position absolute
-  background-color white
-  border 1px solid #ccc
-  border-radius 4px
-  box-shadow 0 2px 8px rgba(0, 0, 0, 0.15)
-  z-index 1000
-  min-width 150px
-  padding 4px 0
-
-.context-menu-list
-  list-style-type none
-  margin 0
-  padding 0
-
-.context-menu-item
-  padding 8px 16px
-  cursor pointer
-  font-size 16px
-  color #333
-  transition background-color 0.2s ease
-  &:hover
-    background-color #f5f5f5
-</style>
-
 <script lang="ts">
 import UpperBanner from "./UpperBanner.vue";
 import InputModal from "./InputModal.vue";
@@ -198,6 +64,7 @@ import {
   type Ref,
   computed,
 } from "vue";
+import router from "@/router";
 
 interface Tree {
   creator: string;
@@ -400,6 +267,12 @@ export default defineComponent({
       }
     };
 
+    const viewTree = (treeId: string) => {
+      console.log("Viewing tree with ID:", treeId);
+      // Redirect to the tree view page
+      router.push(`/${treeId}`);
+    };
+
     // Add event listeners when component is mounted
     onMounted(() => {
       document.addEventListener("click", handleClickOutside);
@@ -432,6 +305,7 @@ export default defineComponent({
       isDeleteModalVisible,
       hideDeleteModal,
       deleteTree,
+      viewTree,
     };
   },
 
@@ -447,3 +321,118 @@ export default defineComponent({
   },
 });
 </script>
+
+<style lang="stylus" scoped>
+.error-message
+  background-color #f8d7da
+  color #721c24
+  padding 16px
+  border-radius 8px
+  box-shadow 0 4px 8px rgba(0, 0, 0, 0.1)
+  margin-bottom 16px
+  text-align center
+
+.no-trees-message
+  background-color #f3f3f3
+  color #495057
+  padding 16px
+  border-radius 8px
+  box-shadow 0 4px 8px rgba(0, 0, 0, 0.1)
+  margin-bottom 16px
+  text-align center
+
+.tree-grid
+  display block // Change from grid to block for full width
+  padding 16px
+  box-sizing border-box // Helps manage padding and width interactions
+  position relative // Helps maintain consistent layout
+
+.tree-card
+  .tree-name
+    white-space nowrap // Prevent line breaks
+    overflow hidden // Hide overflow text
+    text-overflow ellipsis // Add ellipsis for overflow text
+    font-size 2em
+  background-color #f3f3f3
+  padding 16px
+  border-radius 8px
+  box-shadow 0 4px 8px rgba(0, 0, 0, 0.1)
+  transition all 0.3s ease
+  display flex
+  flex-direction column
+  align-items flex-start
+  width 100% // Full width for each card
+  height auto
+  min-height 120px
+  margin-bottom 16px // Add margin between cards
+  &:hover
+    box-shadow 0 6px 12px rgba(0, 0, 0, 0.15)
+    transform scale(1.02)
+
+.add-tree-button
+  position fixed
+  bottom 24px
+  right 24px
+  background-color #2e8b57
+  color white
+  border none
+  border-radius 50%
+  width 60px
+  height 60px
+  font-size 2em
+  display flex
+  align-items center
+  justify-content center
+  box-shadow 0 4px 8px rgba(0, 0, 0, 0.2)
+  cursor pointer
+  transition all 0.3s ease
+  &:hover
+    transform scale(1.1)
+    box-shadow 0 6px 12px rgba(0, 0, 0, 0.3)
+
+button
+  padding 10px 16px
+  border none
+  border-radius 4px
+  cursor pointer
+  font-size 1em
+  font-weight bold
+  flex 1 // Make buttons equal in size
+  text-align center
+  &:nth-child(1)
+    background-color #f8d7da
+    color #721c24
+    transition background-color 0.3s ease
+    &:hover
+      background-color #f5b5b8
+  &:nth-child(2)
+    background-color #2e8b57
+    color white
+    transition background-color 0.3s ease
+    &:hover
+      background-color #247a48
+
+.tree-context-menu
+  position absolute
+  background-color white
+  border 1px solid #ccc
+  border-radius 4px
+  box-shadow 0 2px 8px rgba(0, 0, 0, 0.15)
+  z-index 1000
+  min-width 150px
+  padding 4px 0
+
+.context-menu-list
+  list-style-type none
+  margin 0
+  padding 0
+
+.context-menu-item
+  padding 8px 16px
+  cursor pointer
+  font-size 16px
+  color #333
+  transition background-color 0.2s ease
+  &:hover
+    background-color #f5f5f5
+</style>

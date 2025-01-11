@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 
 export class DBTree extends DBManager {
   // Convert query result into an array of Trees
-  static formatResult(result: QueryResult) {
+  static formatTrees(result: QueryResult) {
     return result.records.map((rec) => {
       const recObj = rec.toObject().tree as Tree;
 
@@ -19,8 +19,14 @@ export class DBTree extends DBManager {
         ).toStandardDate();
       else recObj.lastModified = recObj.dateCreated;
 
+      if (!recObj.isPublic) recObj.isPublic = false;
+
       return recObj;
     }) as Required<Tree>[];
+  }
+
+  static formatTree(result: QueryResult) {
+    return this.formatTrees(result)[0];
   }
 
   static async get(creator: string) {
@@ -46,7 +52,7 @@ export class DBTree extends DBManager {
       await session.close();
     }
 
-    return this.formatResult(result);
+    return this.formatTrees(result);
   }
 
   static async getShared(sharedWith: string) {
@@ -64,7 +70,7 @@ export class DBTree extends DBManager {
       await session.close();
     }
 
-    return this.formatResult(result);
+    return this.formatTrees(result);
   }
 
   static async updateModified(treeId: string) {
@@ -162,6 +168,31 @@ export class DBTree extends DBManager {
 
     return;
   }
+
+  static async getTree(treeId: string) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the Cypher query file
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      "get_tree.cypher"
+    );
+    const query = fs.readFileSync(queryPath, "utf-8"); // Read the query string
+
+    let result;
+
+    try {
+      result = await session.executeWrite((t) => t.run(query, { id: treeId }));
+    } finally {
+      await session.close();
+    }
+
+    return this.formatTree(result);
+  }
 }
 
 export default interface Tree {
@@ -170,4 +201,5 @@ export default interface Tree {
   id: string;
   dateCreated?: Date;
   lastModified?: Date;
+  isPublic?: boolean;
 }

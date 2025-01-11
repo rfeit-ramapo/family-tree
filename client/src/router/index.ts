@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import HomePage from "../components/HomePage.vue"; // Create this component
 import LoginView from "../components/LoginView.vue";
 import TreesView from "@/components/TreesView.vue";
+import TreeView from "@/components/TreeView.vue";
 
 const routes = [
   {
@@ -19,6 +20,12 @@ const routes = [
     name: "Trees",
     component: TreesView, // View showing all trees
     meta: { requiresAuth: true },
+  },
+  {
+    path: "/:treeId", // Dynamic route for a single tree
+    name: "Tree",
+    component: TreeView,
+    props: true,
   },
 ];
 
