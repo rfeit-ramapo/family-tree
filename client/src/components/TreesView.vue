@@ -27,6 +27,15 @@
     @cancel-action="hideRenameModal"
   )
 
+  // Modal for deleting a tree
+  InputModal(
+    :title="'Confirm Deletion'"
+    :isInputVisible="false"
+    :isModalVisible="isDeleteModalVisible"
+    @confirm-action="deleteTree"
+    @cancel-action="hideDeleteModal"
+  )
+
   .tree-grid
     // Otherwise, display the trees
     .tree-card(v-for="tree in trees" :key="tree.id" @contextmenu.prevent="showContextMenu($event, tree)")
@@ -37,7 +46,7 @@
   .tree-context-menu(v-if="contextMenuVisible" :style="contextMenuStyle")
     ul.context-menu-list
       li.context-menu-item(@click="showRenameModal") Rename
-      li.context-menu-item(@click="deleteTree") Delete
+      li.context-menu-item(@click="showDeleteModal") Delete
 
   // Floating '+' button to create a new tree
   button.add-tree-button(@click="showCreateModal") +
@@ -209,6 +218,7 @@ export default defineComponent({
     const errorMessage: Ref<string | null> = ref(null);
     const isCreateModalVisible = ref(false);
     const isRenameModalVisible = ref(false);
+    const isDeleteModalVisible = ref(false);
 
     const showCreateModal = () => {
       isCreateModalVisible.value = true;
@@ -219,12 +229,23 @@ export default defineComponent({
     };
 
     const showRenameModal = () => {
+      console.log("Showing rename modal");
       contextMenuVisible.value = false;
       isRenameModalVisible.value = true;
     };
 
     const hideRenameModal = () => {
       isRenameModalVisible.value = false;
+    };
+
+    const showDeleteModal = () => {
+      console.log("Showing delete modal");
+      contextMenuVisible.value = false;
+      isDeleteModalVisible.value = true;
+    };
+
+    const hideDeleteModal = () => {
+      isDeleteModalVisible.value = false;
     };
 
     const fetchTrees = async () => {
@@ -350,6 +371,35 @@ export default defineComponent({
       }
     };
 
+    const deleteTree = async () => {
+      if (!selectedTree.value) {
+        alert("Error in selecting tree. Please try again.");
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("/api/trees/delete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            treeId: selectedTree.value.id,
+          }),
+        });
+
+        if (!response.ok) throw new Error("Failed to delete tree");
+
+        hideDeleteModal(); // Hide the modal
+        await fetchTrees(); // Refresh the tree list
+      } catch (error) {
+        console.error("Error deleting tree:", error);
+        alert("Failed to delete tree. Please try again.");
+      }
+    };
+
     // Add event listeners when component is mounted
     onMounted(() => {
       document.addEventListener("click", handleClickOutside);
@@ -378,6 +428,10 @@ export default defineComponent({
       showRenameModal,
       isRenameModalVisible,
       hideRenameModal,
+      showDeleteModal,
+      isDeleteModalVisible,
+      hideDeleteModal,
+      deleteTree,
     };
   },
 

@@ -139,6 +139,29 @@ export class DBTree extends DBManager {
 
     return;
   }
+
+  static async deleteTree(treeId: string) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the Cypher query file
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      "delete_tree.cypher"
+    );
+    const query = fs.readFileSync(queryPath, "utf-8"); // Read the query string
+
+    try {
+      await session.executeWrite((t) => t.run(query, { id: treeId }));
+    } finally {
+      await session.close();
+    }
+
+    return;
+  }
 }
 
 export default interface Tree {
