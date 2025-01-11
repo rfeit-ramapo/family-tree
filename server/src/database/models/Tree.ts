@@ -114,6 +114,31 @@ export class DBTree extends DBManager {
 
     return;
   }
+
+  static async renameTree(treeName: string, treeId: string) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the Cypher query file
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      "rename_tree.cypher"
+    );
+    const query = fs.readFileSync(queryPath, "utf-8"); // Read the query string
+
+    try {
+      await session.executeWrite((t) =>
+        t.run(query, { name: treeName, id: treeId })
+      );
+    } finally {
+      await session.close();
+    }
+
+    return;
+  }
 }
 
 export default interface Tree {

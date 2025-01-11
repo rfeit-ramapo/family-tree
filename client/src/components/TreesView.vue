@@ -8,13 +8,24 @@
     p You do not currently have any trees. Press '+' to create a new tree!
 
   // Modal for creating a new tree
-  .modal-overlay(v-if="createModalVisible" @click.self="hideCreateModal")
-    .modal-box
-      h3 Create a new tree
-      input(type="text" placeholder="Enter tree name" v-model="newTreeName" @keyup.enter="createTree" @keyup.esc="hideCreateModal" ref="treeNameInput")
-      .modal-buttons
-        button.modal-buttons(@click="hideCreateModal") Cancel
-        button.modal-buttons(@click="createTree") Confirm
+  InputModal(
+    :title="'Create a New Tree'"
+    :isInputVisible="true"
+    :isModalVisible="isCreateModalVisible"
+    :inputPlaceholder="'Enter tree name'"
+    @confirm-action="createTree"
+    @cancel-action="hideCreateModal"
+  )
+
+  // Modal for renaming a tree
+  InputModal(
+    :title="'Rename Tree'"
+    :isInputVisible="true"
+    :isModalVisible="isRenameModalVisible"
+    :inputPlaceholder="'Enter new name'"
+    @confirm-action="renameTree"
+    @cancel-action="hideRenameModal"
+  )
 
   .tree-grid
     // Otherwise, display the trees
@@ -25,7 +36,7 @@
 
   .tree-context-menu(v-if="contextMenuVisible" :style="contextMenuStyle")
     ul.context-menu-list
-      li.context-menu-item(@click="renameTree") Rename
+      li.context-menu-item(@click="showRenameModal") Rename
       li.context-menu-item(@click="deleteTree") Delete
 
   // Floating '+' button to create a new tree
@@ -119,42 +130,6 @@
     transform scale(1.1)
     box-shadow 0 6px 12px rgba(0, 0, 0, 0.3)
 
-.modal-overlay
-  position fixed
-  inset 0
-  background-color rgba(0, 0, 0, 0.7)
-  display flex
-  justify-content center
-  align-items center
-  z-index 1000
-
-.modal-box
-  background-color white
-  padding 24px
-  border-radius 8px
-  box-shadow 0 8px 16px rgba(0, 0, 0, 0.2)
-  max-width 400px
-  width 90% // Ensure it fits smaller screens
-  text-align left // Align content to the left for a cleaner layout
-  position relative
-
-  input[type="text"]
-    width 100% // Makes the input take up the full width of the modal
-    padding 10px // Add some padding for a clean look
-    margin-top 16px // Space between the input and any content above
-    margin-bottom 16px // Space between the input and any content below
-    border 1px solid #ccc
-    border-radius 4px
-    font-size 1em
-    box-sizing border-box // Ensures padding and border are included in width
-
-
-.modal-buttons
-  display flex
-  justify-content space-between // Ensure buttons are evenly spaced
-  gap 8px // Adds spacing between buttons
-  margin-top 10px
-
 button
   padding 10px 16px
   border none
@@ -204,6 +179,8 @@ button
 
 <script lang="ts">
 import UpperBanner from "./UpperBanner.vue";
+import InputModal from "./InputModal.vue";
+
 import {
   defineComponent,
   ref,
@@ -211,7 +188,6 @@ import {
   onBeforeMount,
   type Ref,
   computed,
-  nextTick,
 } from "vue";
 
 interface Tree {
@@ -226,28 +202,29 @@ export default defineComponent({
   name: "TreesView",
   components: {
     UpperBanner,
+    InputModal,
   },
   setup() {
     const trees: Ref<Tree[]> = ref([]);
     const errorMessage: Ref<string | null> = ref(null);
-    const newTreeName = ref("");
-    const createModalVisible = ref(false);
-    const treeNameInput = ref<HTMLInputElement | null>(null);
+    const isCreateModalVisible = ref(false);
+    const isRenameModalVisible = ref(false);
 
     const showCreateModal = () => {
-      newTreeName.value = "";
-      createModalVisible.value = true;
-
-      // Focus on the input field after the DOM updates
-      nextTick(() => {
-        if (treeNameInput.value) {
-          treeNameInput.value.focus();
-        }
-      });
+      isCreateModalVisible.value = true;
     };
 
     const hideCreateModal = () => {
-      createModalVisible.value = false;
+      isCreateModalVisible.value = false;
+    };
+
+    const showRenameModal = () => {
+      contextMenuVisible.value = false;
+      isRenameModalVisible.value = true;
+    };
+
+    const hideRenameModal = () => {
+      isRenameModalVisible.value = false;
     };
 
     const fetchTrees = async () => {
@@ -272,26 +249,26 @@ export default defineComponent({
       }
     };
 
-    const createTree = async () => {
-      if (!newTreeName.value.trim()) {
+    const createTree = async (inputValue: string) => {
+      console.log("Creating tree with name:", inputValue);
+      if (!inputValue.trim()) {
         alert("Tree name cannot be empty. Please enter a valid name.");
         return;
       }
 
       try {
         const token = localStorage.getItem("token");
-        const response = await fetch("/api/trees", {
+        const response = await fetch("/api/trees/create", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ name: newTreeName.value }),
+          body: JSON.stringify({ name: inputValue }),
         });
 
         if (!response.ok) throw new Error("Failed to create tree");
 
-        newTreeName.value = ""; // Clear the input field
         hideCreateModal(); // Hide the modal
         await fetchTrees(); // Refresh the tree list
       } catch (error) {
@@ -339,14 +316,38 @@ export default defineComponent({
       selectedTree.value = null;
     };
 
-    const renameTree = () => {
-      if (!selectedTree.value) return;
-      const newName = prompt("Enter a new name for the tree:");
-      if (!newName) return;
+    const renameTree = async (inputValue: string) => {
+      console.log("Renaming tree:", inputValue);
+      if (!inputValue.trim()) {
+        alert("Tree name cannot be empty. Please enter a valid name.");
+        return;
+      } else if (!selectedTree.value) {
+        alert("Error in selecting tree. Please try again.");
+        return;
+      }
 
-      // Update the tree name
-      selectedTree.value.name = newName;
-      hideContextMenu();
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("/api/trees/rename", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: inputValue,
+            treeId: selectedTree.value.id,
+          }),
+        });
+
+        if (!response.ok) throw new Error("Failed to rename tree");
+
+        hideRenameModal(); // Hide the modal
+        await fetchTrees(); // Refresh the tree list
+      } catch (error) {
+        console.error("Error renaming tree:", error);
+        alert("Failed to rename tree. Please try again.");
+      }
     };
 
     // Add event listeners when component is mounted
@@ -363,7 +364,6 @@ export default defineComponent({
     return {
       trees,
       errorMessage,
-      newTreeName,
       createTree,
       showContextMenu,
       hideContextMenu,
@@ -374,8 +374,10 @@ export default defineComponent({
       renameTree,
       showCreateModal,
       hideCreateModal,
-      createModalVisible,
-      treeNameInput,
+      isCreateModalVisible,
+      showRenameModal,
+      isRenameModalVisible,
+      hideRenameModal,
     };
   },
 
