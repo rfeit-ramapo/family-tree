@@ -49,6 +49,7 @@ export const treeToNodes = (tree: TreeWithMembers) => {
 
   // Convert all members to nodes
   const focalPoint = memberToNode(tree.focalPoint, false);
+  focalPoint.isFocalPoint = true;
   const partner = tree.partner ? memberToNode(tree.partner, true) : null;
   const parent1 = tree.parent1 ? memberToNode(tree.parent1, false) : null;
   const parent2 = tree.parent2 ? memberToNode(tree.parent2, true) : null;

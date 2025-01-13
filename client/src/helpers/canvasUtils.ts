@@ -29,7 +29,7 @@ export abstract class DrawableObject {
   abstract isInShape(point: { x: number; y: number }): boolean;
 }
 
-class DrawableNode extends DrawableObject {
+export class DrawableNode extends DrawableObject {
   width: number;
   height: number;
   radius: number;
@@ -40,37 +40,28 @@ class DrawableNode extends DrawableObject {
   node: Node;
   image: HTMLImageElement;
 
-  constructor(
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    displayName: string,
-    displayImageURL: string | null,
-    borderColor: string,
-    fillColor: string,
-    node: Node
-  ) {
+  constructor(x: number, y: number, node: Node) {
     super(x, y, node.id);
-    this.width = width;
-    this.height = height;
+    this.width = node.getWidth();
+    this.height = DrawingConstants.DEFAULT_HEIGHT;
     this.radius = DrawingConstants.DEFAULT_RADIUS;
-    this.displayName = displayName;
-    this.displayImageURL = displayImageURL;
-    this.borderColor = borderColor;
-    this.fillColor = fillColor;
+    this.displayName = node.displayName;
+    this.displayImageURL = node.displayImageURL;
+
+    this.borderColor = node.isFocalPoint ? "green" : "black";
+    this.fillColor = node.isFocalPoint ? "#acbda1" : "lightgray";
     this.node = node;
 
     // Load the image if displayImageURL is provided
     this.image = new Image();
-    if (displayImageURL) {
-      this.image.src = displayImageURL;
+    if (node.displayImageURL) {
+      this.image.src = node.displayImageURL;
     } else {
       this.image.src = defaultPerson;
     }
   }
 
-  draw(ctx: CanvasRenderingContext2D) {
+  async draw(ctx: CanvasRenderingContext2D) {
     // Draw the background shape first
     drawRoundedRectFromLeft(
       ctx,
@@ -79,80 +70,61 @@ class DrawableNode extends DrawableObject {
       this.width,
       this.height,
       this.radius,
-      undefined, // No background image if not available
+      undefined,
       DrawingConstants.LINE_WIDTH,
       this.fillColor,
       this.borderColor
     );
 
-    // Wait for the image to be loaded only once, then draw
     if (this.image.complete) {
-      // Set the target height to 2/3 of the node height
-      let targetHeight = this.height * 0.67;
-
-      // Calculate the proportional width based on the target height and the image aspect ratio
-      let targetWidth = this.image.width * (targetHeight / this.image.height);
-
-      // If the width exceeds the node width, scale it to 95% of the node's width
-      if (targetWidth > this.width * 0.95) {
-        targetWidth = this.width * 0.95;
-        targetHeight = this.image.height * (targetWidth / this.image.width);
-      }
-
-      // Calculate the position to center the image horizontally
-      const centerX = this.position.x + (this.width - targetWidth) / 2;
-      const topY = this.position.y - DrawingConstants.DEFAULT_HEIGHT / 2.2;
-
-      // Draw the image with the calculated dimensions and position
-      ctx.drawImage(this.image, centerX, topY, targetWidth, targetHeight);
+      this.drawImage(ctx);
     } else {
       this.image.onload = () => {
-        // Set the target height to 2/3 of the node height
-        let targetHeight = this.height * 0.67;
-
-        // Calculate the proportional width based on the target height and the image aspect ratio
-        let targetWidth = this.image.width * (targetHeight / this.image.height);
-
-        // If the width exceeds the node width, scale it to 95% of the node's width
-        if (targetWidth > this.width * 0.95) {
-          targetWidth = this.width * 0.95;
-          targetHeight = this.image.height * (targetWidth / this.image.width);
-        }
-
-        // Calculate the position to center the image horizontally
-        const centerX = this.position.x + (this.width - targetWidth) / 2;
-        const topY = this.position.y - DrawingConstants.DEFAULT_HEIGHT / 2.2;
-
-        // Draw the image with the calculated dimensions and position
-        ctx.drawImage(this.image!, centerX, topY, targetWidth, targetHeight);
+        this.drawImage(ctx);
       };
     }
+
+    this.drawText(ctx);
+  }
+
+  drawImage(ctx: CanvasRenderingContext2D) {
+    // Set the target height to 2/3 of the node height
+    let targetHeight = this.height * 0.67;
+
+    // Calculate the proportional width based on the target height and the image aspect ratio
+    let targetWidth = this.image.width * (targetHeight / this.image.height);
+
+    // If the width exceeds the node width, scale it to 95% of the node's width
+    if (targetWidth > this.width * 0.95) {
+      targetWidth = this.width * 0.95;
+      targetHeight = this.image.height * (targetWidth / this.image.width);
+    }
+
+    const centerX = this.position.x + (this.width - targetWidth) / 2;
+    const topY = this.position.y - DrawingConstants.DEFAULT_HEIGHT / 2.2;
+
+    // Draw the image
+    ctx.drawImage(this.image, centerX, topY, targetWidth, targetHeight);
+  }
+
+  drawText(ctx: CanvasRenderingContext2D) {
     // Draw the text label in the bottom third of the node
     const bottomThirdHeight = this.height / 3;
-
-    // Calculate the vertical position for the text in the bottom third of the node
     const textY = this.position.y + this.height / 2 - bottomThirdHeight / 2;
 
     ctx.font = "16px Arial";
     ctx.fillStyle = "black";
     ctx.textAlign = "center";
 
-    // Split the display name into two lines if there is a space
     const nameParts = this.displayName.split(" ");
     if (nameParts.length > 1) {
-      // Two lines of text
       const line1 = nameParts
         .slice(0, Math.ceil(nameParts.length / 2))
         .join(" ");
       const line2 = nameParts.slice(Math.ceil(nameParts.length / 2)).join(" ");
-
-      // Draw the first line of text
       ctx.fillText(line1, this.position.x + this.width / 2, textY - 10);
-
-      // Draw the second line of text
       ctx.fillText(line2, this.position.x + this.width / 2, textY + 10);
     } else {
-      // Single line of text
       ctx.fillText(this.displayName, this.position.x + this.width / 2, textY);
     }
   }
@@ -257,6 +229,7 @@ export class Node extends CanvasObject {
   parentRelationships: ParentRelationship[];
   partnerRelationship: PartnerRelationship | null;
   isPartner: boolean;
+  isFocalPoint: boolean = false;
   gender?: string;
 
   constructor(
@@ -308,17 +281,7 @@ export class Node extends CanvasObject {
     renderList: DrawableObject[]
   ) {
     // Calculate the layout for this node
-    const drawableNode = new DrawableNode(
-      fromX,
-      fromY,
-      this.getWidth(),
-      DrawingConstants.DEFAULT_HEIGHT,
-      this.displayName,
-      this.displayImageURL,
-      "black",
-      "lavender",
-      this
-    );
+    const drawableNode = new DrawableNode(fromX, fromY, this);
     renderList.push(drawableNode);
 
     // Update the position for the next object
@@ -732,7 +695,6 @@ export const testDraw = (
 
   const renderList: DrawableObject[] = [];
   if (rootNode) rootNode.calculateLayout({ ctx, x: 100, y: 100 }, renderList);
-  console.log("root node", rootNode);
 
   // Sort renderList: DrawableRelationship objects first, DrawableNode objects last
   // Among DrawableRelationship objects, PartnerRelationship is sorted last

@@ -8,7 +8,7 @@
     //  p(v-if="!errorMessage") This is a sample page for the tree. Below is the JSON data.
     //  pre(v-if="!errorMessage") {{ JSON.stringify(tree, null, 2) }}
   
-    .canvas-container
+    .canvas-container(v-if="!errorMessage")
       canvas#tree-canvas(
         @mousedown="startDrag"
         @mousemove="onDrag"
@@ -23,19 +23,12 @@
 import { ref, defineComponent, type Ref, onMounted } from "vue";
 import UpperBanner from "./UpperBanner.vue";
 import {
+  DrawableNode,
   DrawableObject,
   isClickInsideObject,
   testDraw,
 } from "@/helpers/canvasUtils";
 import type { TreeWithMembers } from "@/helpers/treeToNodes";
-
-interface Tree {
-  creator: string;
-  name: string;
-  id: string;
-  dateCreated: Date;
-  lastModified: Date;
-}
 
 export default defineComponent({
   name: "TreeView",
@@ -54,6 +47,26 @@ export default defineComponent({
     const renderedObjects: Ref<DrawableObject[]> = ref([]);
     const isDragging = ref(false);
     const wasDragged = ref(false);
+
+    const setupCanvas = () => {
+      const canvas = document.getElementById(
+        "tree-canvas"
+      ) as HTMLCanvasElement;
+      const ctx = canvas.getContext("2d");
+
+      // Get device pixel ratio
+      const dpr = window.devicePixelRatio || 1;
+
+      // Set canvas resolution (in pixels)
+      const displayWidth = canvas.clientWidth;
+      const displayHeight = canvas.clientHeight;
+
+      canvas.width = displayWidth * dpr;
+      canvas.height = displayHeight * dpr;
+
+      // Scale drawing context to handle high-DPI screens
+      ctx?.scale(dpr, dpr);
+    };
 
     const fetchTreeMetadata = async () => {
       try {
@@ -82,8 +95,6 @@ export default defineComponent({
         }
 
         tree.value = await response.json();
-        console.log("Focal Point", tree.value?.focalPoint);
-        console.log("Tree", tree.value);
         errorMessage.value = null;
       } catch (error) {
         console.error("Error fetching the tree:", error);
@@ -183,6 +194,15 @@ export default defineComponent({
       }
     };
 
+    const setupObjects = () => {
+      const canvas = document.getElementById(
+        "tree-canvas"
+      ) as HTMLCanvasElement;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      if (tree.value) renderedObjects.value = testDraw(ctx, tree.value);
+    };
+
     const drawCanvas = () => {
       const canvas = document.getElementById(
         "tree-canvas"
@@ -200,22 +220,50 @@ export default defineComponent({
       ctx.restore();
     };
 
-    onMounted(async () => {
+    const centerCanvas = (centerX: number, centerY: number) => {
       const canvas = document.getElementById(
         "tree-canvas"
       ) as HTMLCanvasElement;
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
+      if (!canvas) return;
 
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.scale(dpr, dpr);
+      const dpr = window.devicePixelRatio || 1; // Account for high-DPI screens
+
+      // Convert canvas dimensions to logical dimensions
+      const canvasWidth = canvas.width / dpr / scale.value;
+      const canvasHeight = canvas.height / dpr / scale.value;
+
+      // Calculate the offset to center the content
+      offsetX.value = (canvasWidth / 2 - centerX) * scale.value;
+      offsetY.value = (canvasHeight / 2 - centerY) * scale.value;
+
+      drawCanvas(); // Redraw with updated offsets
+    };
+
+    const centerOnFocalPoint = (renderedObjects: DrawableObject[]) => {
+      const focalDrawing = renderedObjects.find((obj) => {
+        if (obj instanceof DrawableNode) {
+          return obj.node.isFocalPoint;
+        }
+      }) as DrawableNode | undefined;
+      if (focalDrawing) {
+        centerCanvas(
+          focalDrawing.position.x + focalDrawing.width / 2,
+          focalDrawing.position.y
+        );
+
+        console.log(
+          "centered canvas on:",
+          focalDrawing.position.x + focalDrawing.width / 2,
+          focalDrawing.position.y
+        );
       }
+    };
+
+    onMounted(async () => {
+      setupCanvas();
 
       await fetchTreeMetadata();
-      drawCanvas();
+      setupObjects();
     });
 
     return {
