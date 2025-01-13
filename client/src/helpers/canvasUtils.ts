@@ -1,4 +1,5 @@
 import defaultPerson from "../assets/default_person.svg";
+import { treeToNodes, type TreeWithMembers } from "./treeToNodes";
 
 interface CanvasState {
   ctx: CanvasRenderingContext2D;
@@ -248,7 +249,7 @@ abstract class CanvasObject {
   ): void;
 }
 
-class Node extends CanvasObject {
+export class Node extends CanvasObject {
   id: string;
   displayName: string;
   displayImageURL: string | null;
@@ -256,12 +257,14 @@ class Node extends CanvasObject {
   parentRelationships: ParentRelationship[];
   partnerRelationship: PartnerRelationship | null;
   isPartner: boolean;
+  gender?: string;
 
   constructor(
     id: string,
     displayName: string,
     isPartner: boolean = false,
-    displayImageURL: string | null = null
+    displayImageURL: string | null = null,
+    gender?: string
   ) {
     super();
     this.id = id;
@@ -271,6 +274,7 @@ class Node extends CanvasObject {
     this.parentRelationships = [];
     this.partnerRelationship = null;
     this.isPartner = isPartner;
+    this.gender = gender;
   }
 
   // Get the width of this particular node
@@ -395,12 +399,12 @@ enum RelationshipDirection {
   VERTICAL = "vertical",
 }
 
-enum RelationshipType {
+export enum RelationshipType {
   PARENT = "parent",
   PARTNER = "partner",
 }
 
-abstract class Relationship extends CanvasObject {
+export abstract class Relationship extends CanvasObject {
   id: string;
   displayName: string;
   fromNodes: Node[];
@@ -493,7 +497,7 @@ abstract class Relationship extends CanvasObject {
   abstract getLength(): number;
 }
 
-class ParentRelationship extends Relationship {
+export class ParentRelationship extends Relationship {
   constructor(id: string, displayName: string, fromNode: Node, toNode: Node) {
     super(
       id,
@@ -511,7 +515,7 @@ class ParentRelationship extends Relationship {
 }
 
 // Relationship springing from a partnership (multiple parents)
-class ParentsRelationship extends Relationship {
+export class ParentsRelationship extends Relationship {
   constructor(
     id: string,
     displayName: string,
@@ -535,7 +539,7 @@ class ParentsRelationship extends Relationship {
   }
 }
 
-class PartnerRelationship extends Relationship {
+export class PartnerRelationship extends Relationship {
   childRelationships: ParentsRelationship[] = [];
 
   constructor(id: string, displayName: string, fromNode: Node, toNode: Node) {
@@ -720,67 +724,15 @@ export const drawLine = (
   ctx.restore(); // Restore the canvas state
 };
 
-export const testDraw = (ctx: CanvasRenderingContext2D) => {
-  const node1 = new Node("1", "John Smith");
-  const node2 = new Node("2", "Jane Smith", true);
-  const rel1_2 = new PartnerRelationship("1_2", "Married", node1, node2);
-  const partnerChild = new Node("3", "Joey Smith");
-  node1.partnerRelationship = rel1_2;
-  rel1_2.childRelationships.push(
-    new ParentsRelationship("1_2_3", "Child", [node1, node2], partnerChild)
-  );
-
-  // add a partner for the partner child
-  const partnerChildPartner = new Node("9", "Jill NotSmith", true);
-  partnerChild.partnerRelationship = new PartnerRelationship(
-    "3_9",
-    "Married",
-    partnerChild,
-    partnerChildPartner
-  );
-
-  const myChild = new Node("4", "Jackie NotSmith");
-  node1.childRelationships.push(
-    new ParentRelationship("1_4", "Child", node1, myChild)
-  );
-
-  const myChild2 = new Node("5", "Jack NotSmith");
-  node1.childRelationships.push(
-    new ParentRelationship("1_5", "Child", node1, myChild2)
-  );
-
-  // add another sibling to the only children and a partner for that child
-  const myChild3 = new Node("6", "Jill NotSmith");
-  node1.childRelationships.push(
-    new ParentRelationship("1_6", "Child", node1, myChild3)
-  );
-  myChild3.partnerRelationship = new PartnerRelationship(
-    "6_7",
-    "Married",
-    myChild3,
-    new Node("7", "Jill Smith", true)
-  );
-
-  // fourth child for the only children
-  const myChild4 = new Node("8", "Jackie NotSmith");
-  node1.childRelationships.push(
-    new ParentRelationship("1_8", "Child", node1, myChild4)
-  );
-
-  // add another partner child
-  const partnerChild2 = new Node("10", "Jill NotSmith", false);
-  rel1_2.childRelationships.push(
-    new ParentsRelationship("1_2_10", "Child", [node1, node2], partnerChild2)
-  );
-
-  // add a third partner child
-  const partnerChild3 = new Node("11", "Jill NotSmith", false);
-  rel1_2.childRelationships.push(
-    new ParentsRelationship("1_2_11", "Child", [node1, node2], partnerChild3)
-  );
+export const testDraw = (
+  ctx: CanvasRenderingContext2D,
+  tree: TreeWithMembers
+) => {
+  const rootNode = treeToNodes(tree);
 
   const renderList: DrawableObject[] = [];
-  node1.calculateLayout({ ctx, x: 100, y: 100 }, renderList);
+  if (rootNode) rootNode.calculateLayout({ ctx, x: 100, y: 100 }, renderList);
+  console.log("root node", rootNode);
 
   // Sort renderList: DrawableRelationship objects first, DrawableNode objects last
   // Among DrawableRelationship objects, PartnerRelationship is sorted last

@@ -27,6 +27,7 @@ import {
   isClickInsideObject,
   testDraw,
 } from "@/helpers/canvasUtils";
+import type { TreeWithMembers } from "@/helpers/treeToNodes";
 
 interface Tree {
   creator: string;
@@ -48,7 +49,7 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const tree: Ref<Tree | null> = ref(null);
+    const tree: Ref<TreeWithMembers | null> = ref(null);
     const errorMessage: Ref<string | null> = ref(null);
     const renderedObjects: Ref<DrawableObject[]> = ref([]);
     const isDragging = ref(false);
@@ -81,6 +82,8 @@ export default defineComponent({
         }
 
         tree.value = await response.json();
+        console.log("Focal Point", tree.value?.focalPoint);
+        console.log("Tree", tree.value);
         errorMessage.value = null;
       } catch (error) {
         console.error("Error fetching the tree:", error);
@@ -192,12 +195,12 @@ export default defineComponent({
       ctx.translate(offsetX.value, offsetY.value);
       ctx.scale(scale.value, scale.value);
 
-      renderedObjects.value = testDraw(ctx);
+      if (tree.value) renderedObjects.value = testDraw(ctx, tree.value);
 
       ctx.restore();
     };
 
-    onMounted(() => {
+    onMounted(async () => {
       const canvas = document.getElementById(
         "tree-canvas"
       ) as HTMLCanvasElement;
@@ -211,7 +214,7 @@ export default defineComponent({
         ctx.scale(dpr, dpr);
       }
 
-      fetchTreeMetadata();
+      await fetchTreeMetadata();
       drawCanvas();
     });
 

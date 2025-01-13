@@ -26,7 +26,7 @@ OPTIONAL MATCH (p)-[:PARENT_OF]->(soloChild:Person)
 // Return
 RETURN 
   t{.*, creator: u.id} AS tree,
-  p,
+  p AS focalPoint,
   partner,
   parent1,
   parent2,

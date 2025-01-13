@@ -1,4 +1,4 @@
-import { DateTime } from "neo4j-driver";
+import { DateTime, Node } from "neo4j-driver";
 import DBManager from "../DBManager";
 import fs from "fs";
 import path from "path";
@@ -21,7 +21,40 @@ export class DBTree extends DBManager {
   }
 
   static formatFullTree(rawTree: TreeWithMembers) {
+    console.log(rawTree.tree);
     rawTree.tree = DBTree.formatTree(rawTree);
+    rawTree.focalPoint = (rawTree.focalPoint as unknown as Node)
+      .properties as TreeMember;
+    if (rawTree.partner)
+      rawTree.partner = (rawTree.partner as unknown as Node)
+        .properties as TreeMember;
+    if (rawTree.parent1)
+      rawTree.parent1 = (rawTree.parent1 as unknown as Node)
+        .properties as TreeMember;
+    if (rawTree.parent2)
+      rawTree.parent2 = (rawTree.parent2 as unknown as Node)
+        .properties as TreeMember;
+    if (rawTree.siblings)
+      rawTree.siblings = rawTree.siblings.map(
+        (sibling) => (sibling as unknown as Node).properties as TreeMember
+      );
+    if (rawTree.halfSiblingsP1)
+      rawTree.halfSiblingsP1 = rawTree.halfSiblingsP1.map(
+        (sibling) => (sibling as unknown as Node).properties as TreeMember
+      );
+    if (rawTree.halfSiblingsP2)
+      rawTree.halfSiblingsP2 = rawTree.halfSiblingsP2.map(
+        (sibling) => (sibling as unknown as Node).properties as TreeMember
+      );
+    if (rawTree.partnerChildren)
+      rawTree.partnerChildren = rawTree.partnerChildren.map(
+        (child) => (child as unknown as Node).properties as TreeMember
+      );
+    if (rawTree.soloChildren)
+      rawTree.soloChildren = rawTree.soloChildren.map(
+        (child) => (child as unknown as Node).properties as TreeMember
+      );
+
     return rawTree as TreeWithMembers & { tree: Required<Tree> };
   }
 

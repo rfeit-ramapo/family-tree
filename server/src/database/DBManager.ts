@@ -19,7 +19,9 @@ export default class DBManager {
     result: QueryResult,
     formatter: (rec: RawT) => T
   ) {
-    return formatter(result.records[0].toObject());
+    const test = formatter(result.records[0].toObject());
+    console.log(test);
+    return test;
   }
 
   // Turns a Neo4j record into an array of objects
@@ -27,7 +29,9 @@ export default class DBManager {
     result: QueryResult,
     formatter: (rec: RawT) => T
   ) {
-    return result.records.map((rec) => formatter(rec.toObject()));
+    const test = result.records.map((rec) => formatter(rec.toObject()));
+    console.log(test);
+    return test;
   }
 }
 
