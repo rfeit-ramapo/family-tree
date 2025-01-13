@@ -21,19 +21,22 @@ export class DBTree extends DBManager {
   }
 
   static formatFullTree(rawTree: TreeWithMembers) {
-    console.log(rawTree.tree);
     rawTree.tree = DBTree.formatTree(rawTree);
-    rawTree.focalPoint = (rawTree.focalPoint as unknown as Node)
-      .properties as TreeMember;
+    rawTree.focalPoint = rawTree.focalPoint
+      ? ((rawTree.focalPoint as unknown as Node).properties as TreeMember)
+      : undefined;
     if (rawTree.partner)
-      rawTree.partner = (rawTree.partner as unknown as Node)
-        .properties as TreeMember;
+      rawTree.partner = rawTree.focalPoint
+        ? ((rawTree.partner as unknown as Node).properties as TreeMember)
+        : undefined;
     if (rawTree.parent1)
-      rawTree.parent1 = (rawTree.parent1 as unknown as Node)
-        .properties as TreeMember;
+      rawTree.parent1 = rawTree.parent1
+        ? ((rawTree.parent1 as unknown as Node).properties as TreeMember)
+        : undefined;
     if (rawTree.parent2)
-      rawTree.parent2 = (rawTree.parent2 as unknown as Node)
-        .properties as TreeMember;
+      rawTree.parent2 = rawTree.parent2
+        ? ((rawTree.parent2 as unknown as Node).properties as TreeMember)
+        : undefined;
     if (rawTree.siblings)
       rawTree.siblings = rawTree.siblings.map(
         (sibling) => (sibling as unknown as Node).properties as TreeMember
