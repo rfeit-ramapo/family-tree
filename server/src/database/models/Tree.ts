@@ -1,35 +1,31 @@
-import { DateTime, QueryResult } from "neo4j-driver";
+import { DateTime } from "neo4j-driver";
 import DBManager from "../DBManager";
 import fs from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 
 export class DBTree extends DBManager {
-  // Convert query result into an array of Trees
-  static formatTrees(result: QueryResult) {
-    return result.records.map((rec) => {
-      const recObj = rec.toObject().tree as Tree;
-
-      recObj.dateCreated = (
-        recObj.dateCreated as unknown as DateTime
+  static formatTree({ tree: rawTree }: { tree: Tree }) {
+    rawTree.dateCreated = (
+      rawTree.dateCreated as unknown as DateTime
+    ).toStandardDate();
+    if (rawTree.lastModified)
+      rawTree.lastModified = (
+        rawTree.lastModified as unknown as DateTime
       ).toStandardDate();
-      if (recObj.lastModified)
-        recObj.lastModified = (
-          recObj.lastModified as unknown as DateTime
-        ).toStandardDate();
-      else recObj.lastModified = recObj.dateCreated;
+    else rawTree.lastModified = rawTree.dateCreated;
 
-      if (!recObj.isPublic) recObj.isPublic = false;
+    if (!rawTree.isPublic) rawTree.isPublic = false;
 
-      return recObj;
-    }) as Required<Tree>[];
+    return rawTree as Required<Tree>;
   }
 
-  static formatTree(result: QueryResult) {
-    return this.formatTrees(result)[0];
+  static formatFullTree(rawTree: TreeWithMembers) {
+    rawTree.tree = DBTree.formatTree(rawTree);
+    return rawTree as TreeWithMembers & { tree: Required<Tree> };
   }
 
-  static async get(creator: string) {
+  static async getCreatorTrees(creator: string) {
     const session = this.driver.session({ database: DBManager.db_name });
 
     // Path to the Cypher query file
@@ -51,8 +47,7 @@ export class DBTree extends DBManager {
     } finally {
       await session.close();
     }
-
-    return this.formatTrees(result);
+    return this.formatQueryResultArray(result, this.formatTree);
   }
 
   static async getShared(sharedWith: string) {
@@ -70,7 +65,7 @@ export class DBTree extends DBManager {
       await session.close();
     }
 
-    return this.formatTrees(result);
+    return this.formatQueryResultArray(result, this.formatTree);
   }
 
   static async updateModified(treeId: string) {
@@ -191,15 +186,41 @@ export class DBTree extends DBManager {
       await session.close();
     }
 
-    return this.formatTree(result);
+    return this.formatQueryResult(result, this.formatFullTree);
   }
 }
 
-export default interface Tree {
+export interface Tree {
   creator: string;
   name: string;
   id: string;
   dateCreated?: Date;
   lastModified?: Date;
   isPublic?: boolean;
+}
+
+export interface TreeMember {
+  id: string;
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  dateOfBirth?: Date;
+  dateOfDeath?: Date;
+  note?: string;
+  gender?: string;
+  location?: string;
+  imageUrl?: string;
+}
+
+export interface TreeWithMembers {
+  tree: Tree;
+  focalPoint?: TreeMember;
+  partner?: TreeMember;
+  parent1?: TreeMember;
+  parent2?: TreeMember;
+  siblings?: TreeMember[];
+  halfSiblingsP1?: TreeMember[];
+  halfSiblingsP2?: TreeMember[];
+  partnerChildren?: TreeMember[];
+  soloChildren?: TreeMember[];
 }

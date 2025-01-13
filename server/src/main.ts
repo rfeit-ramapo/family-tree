@@ -75,7 +75,7 @@ app.get("/api/trees", async (req, res) => {
     }
 
     // Fetch trees for the user from the database
-    const trees = await DBTree.get(userId);
+    const trees = await DBTree.getCreatorTrees(userId);
     res.status(200).json(trees);
     return;
   } catch (error) {
@@ -256,22 +256,24 @@ app.get("/api/tree/:treeId", async (req, res) => {
     }
   }
 
-  let tree;
+  let fullTree;
+  let metadata;
   try {
     // Fetch the tree from the database
-    tree = await DBTree.getTree(treeId);
+    fullTree = await DBTree.getTree(treeId);
+    metadata = fullTree.tree;
   } catch (error) {
     console.error("Error fetching tree:", error);
     res.status(500).json({ message: "Failed to fetch tree" });
     return;
   }
 
-  if (!tree.isPublic && tree.creator !== userId) {
+  if (!metadata.isPublic && metadata.creator !== userId) {
     res.status(403).json({ message: "Unauthorized: Tree is private" });
     return;
   }
 
-  res.status(200).json(tree);
+  res.status(200).json(fullTree);
 });
 
 app.listen(PORT, () => {
