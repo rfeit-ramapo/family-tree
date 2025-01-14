@@ -42,5 +42,4 @@ export default {
 
 .page-content
   margin-top 80px
-  padding 20px
 </style>

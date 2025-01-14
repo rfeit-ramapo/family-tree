@@ -130,15 +130,10 @@ export class DrawableNode extends DrawableObject {
   }
 
   isInShape({ x, y }: { x: number; y: number }): boolean {
-    console.log(`Checking drawable node ${this.displayName}`);
     const upperBound = this.position.y - this.height / 2;
     const lowerBound = this.position.y + this.height / 2;
     const leftBound = this.position.x;
     const rightBound = this.position.x + this.width;
-
-    console.log(
-      `Checking if ${x}, ${y} is in ${leftBound}, ${rightBound}, ${upperBound}, ${lowerBound}`
-    );
 
     return (
       x >= leftBound && x <= rightBound && y >= upperBound && y <= lowerBound
@@ -694,7 +689,7 @@ export const testDraw = (
   const rootNode = treeToNodes(tree);
 
   const renderList: DrawableObject[] = [];
-  if (rootNode) rootNode.calculateLayout({ ctx, x: 100, y: 100 }, renderList);
+  if (rootNode) rootNode.calculateLayout({ ctx, x: 200, y: 150 }, renderList);
 
   // Sort renderList: DrawableRelationship objects first, DrawableNode objects last
   // Among DrawableRelationship objects, PartnerRelationship is sorted last
@@ -734,7 +729,7 @@ export const testDraw = (
   return renderList;
 };
 
-export function isClickInsideObject(
+export function isPointInsideObject(
   clickPosition: { x: number; y: number },
   renderList: DrawableObject[]
 ): DrawableObject | null {
