@@ -30,9 +30,13 @@ import {
   DrawableNode,
   DrawableObject,
   isPointInsideObject,
+  redraw,
   testDraw,
+  updateSelectionBox,
+  type Position,
 } from "@/helpers/canvasUtils";
 import type { TreeWithMembers } from "@/helpers/treeToNodes";
+import eventBus from "@/helpers/eventBus";
 
 export default defineComponent({
   name: "TreeView",
@@ -47,6 +51,9 @@ export default defineComponent({
     },
   },
   setup(props) {
+    const canvas = ref(
+      document.getElementById("tree-canvas") as HTMLCanvasElement
+    );
     const tree: Ref<TreeWithMembers | null> = ref(null);
     const errorMessage: Ref<string | null> = ref(null);
     const renderedObjects: Ref<DrawableObject[]> = ref([]);
@@ -54,37 +61,47 @@ export default defineComponent({
     const wasDragged = ref(false);
     const selectedTool = ref<Tool>(Tool.PAN);
     const selectedItem = ref<DrawableObject | null>(null);
+    const hoveredObject = ref<DrawableObject | null>(null);
+
+    const calcOriginalCoords = (event: MouseEvent): Position => {
+      const originalX = (event.offsetX - offsetX.value) / scale.value;
+      const originalY = (event.offsetY - offsetY.value) / scale.value;
+      return { x: originalX, y: originalY };
+    };
 
     const changeTool = (tool: Tool) => {
       console.log("changing tool to", tool);
+      // Deselect anything on tool change
+      selectedItem.value = null;
+      updateSelectionBox(null, renderedObjects.value);
+
       selectedTool.value = tool;
       if (tool === Tool.PAN) {
-        const canvas = document.getElementById(
-          "tree-canvas"
-        ) as HTMLCanvasElement;
-        canvas.style.cursor = "grab";
+        canvas.value.style.cursor = "grab";
+      } else {
+        canvas.value.style.cursor = "default";
       }
     };
 
     const setupCanvas = () => {
-      const canvas = document.getElementById(
+      canvas.value = document.getElementById(
         "tree-canvas"
       ) as HTMLCanvasElement;
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.value.getContext("2d");
 
       // Get device pixel ratio
       const dpr = window.devicePixelRatio || 1;
 
       // Set canvas resolution (in pixels)
-      const displayWidth = canvas.clientWidth;
-      const displayHeight = canvas.clientHeight;
+      const displayWidth = canvas.value.clientWidth;
+      const displayHeight = canvas.value.clientHeight;
 
-      canvas.width = displayWidth * dpr;
-      canvas.height = displayHeight * dpr;
+      canvas.value.width = displayWidth * dpr;
+      canvas.value.height = displayHeight * dpr;
 
       // Scale drawing context to handle high-DPI screens
       ctx?.scale(dpr, dpr);
-      canvas.style.cursor = "grab";
+      canvas.value.style.cursor = "grab";
     };
 
     const fetchTreeMetadata = async () => {
@@ -132,16 +149,27 @@ export default defineComponent({
     const offsetY = ref(0);
 
     const startDrag = (event: MouseEvent) => {
+      lastX.value = event.clientX;
+      lastY.value = event.clientY;
+
       if (selectedTool.value === Tool.PAN) {
         isDragging.value = true;
-        lastX.value = event.clientX;
-        lastY.value = event.clientY;
 
         // Change the cursor to a closed hand while dragging
-        const canvas = document.getElementById(
-          "tree-canvas"
-        ) as HTMLCanvasElement;
-        canvas.style.cursor = "grabbing";
+        canvas.value.style.cursor = "grabbing";
+      } else if (selectedTool.value === Tool.SELECT) {
+        // If the user is on a selected object, start dragging it
+        const originalCoords = calcOriginalCoords(event);
+        if (
+          selectedItem.value &&
+          selectedItem.value.isInShape({
+            x: originalCoords.x,
+            y: originalCoords.y,
+          })
+        ) {
+          isDragging.value = true;
+          canvas.value.style.cursor = "grabbing";
+        }
       }
     };
 
@@ -152,24 +180,38 @@ export default defineComponent({
         return;
       } else if (selectedTool.value === Tool.SELECT) {
         // Get mouse coordinates relative to the canvas
-        const canvas = document.getElementById(
-          "tree-canvas"
-        ) as HTMLCanvasElement;
-        const x = event.offsetX;
-        const y = event.offsetY;
 
-        const originalX = (x - offsetX.value) / scale.value;
-        const originalY = (y - offsetY.value) / scale.value;
-
-        const hoveredObject = isPointInsideObject(
-          { x: originalX, y: originalY },
+        const newHoveredObject = isPointInsideObject(
+          calcOriginalCoords(event),
           renderedObjects.value
         );
 
-        if (hoveredObject) {
-          canvas.style.cursor = "grab";
-        } else {
-          canvas.style.cursor = "default";
+        // If hovering over a selected object, show the grab cursor
+        if (
+          newHoveredObject &&
+          newHoveredObject?.id === selectedItem.value?.id
+        ) {
+          canvas.value.style.cursor = "grab";
+        }
+        // If the user mouses off the hovered object, reset the cursor
+        else if (hoveredObject.value && !newHoveredObject) {
+          canvas.value.style.cursor = "default";
+          hoveredObject.value.toggleHover(false);
+          hoveredObject.value = null;
+          console.log("reset hovered object");
+        }
+
+        // If this is a new object, update the hovered object and redraw canvas
+        const isNewObject =
+          newHoveredObject && newHoveredObject?.id !== hoveredObject.value?.id;
+
+        if (isNewObject) {
+          console.log("new hovered object:", newHoveredObject);
+          // Apply the hover property to the new drawing
+          hoveredObject.value?.toggleHover(false);
+          hoveredObject.value = newHoveredObject;
+          hoveredObject.value.toggleHover(true);
+          console.log("hovered object after toggle:", hoveredObject.value);
         }
       }
     };
@@ -177,53 +219,50 @@ export default defineComponent({
     const onDrag = (event: MouseEvent) => {
       if (!isDragging.value) return;
 
-      if (selectedTool.value === Tool.PAN) {
-        // Calculate the delta movement based on mouse movement in screen coordinates
-        const dx = event.clientX - lastX.value;
-        const dy = event.clientY - lastY.value;
+      // Calculate the delta movement based on mouse movement in screen coordinates
+      const dx = event.clientX - lastX.value;
+      const dy = event.clientY - lastY.value;
 
-        // Update the offsets directly (no scale adjustment needed for "exact" movement)
+      if (selectedTool.value === Tool.PAN) {
+        // Update the offsets directly
         offsetX.value += dx;
         offsetY.value += dy;
-
-        // Save the current mouse position for the next event
-        lastX.value = event.clientX;
-        lastY.value = event.clientY;
-
-        // Stop mouse clicks from occurring if the user is dragging
-        if (dx || dy) {
-          wasDragged.value = true;
+      } else if (selectedTool.value === Tool.SELECT) {
+        // If the user is dragging a selected object, move it
+        if (selectedItem.value) {
+          selectedItem.value.move(dx / scale.value, dy / scale.value);
         }
       }
+
+      // Stop mouse clicks from occurring if the user is dragging
+      if (dx || dy) {
+        wasDragged.value = true;
+      }
+
+      // Save the current mouse position for the next event
+      lastX.value = event.clientX;
+      lastY.value = event.clientY;
 
       drawCanvas();
     };
 
     const endDrag = () => {
       isDragging.value = false;
-      const canvas = document.getElementById(
-        "tree-canvas"
-      ) as HTMLCanvasElement;
-      canvas.style.cursor = "grab";
+      if (canvas.value.style.cursor === "grabbing")
+        canvas.value.style.cursor = "grab";
     };
 
     const onHover = (event: MouseEvent) => {
       if (selectedTool.value === Tool.PAN) {
         // show a hand cursor when hovering over the canvas
-        const canvas = document.getElementById(
-          "tree-canvas"
-        ) as HTMLCanvasElement;
-        canvas.style.cursor = "grab";
+        canvas.value.style.cursor = "grab";
       }
     };
 
     const onZoom = (event: WheelEvent) => {
       event.preventDefault();
-      const canvas = document.getElementById(
-        "tree-canvas"
-      ) as HTMLCanvasElement;
-      const mouseX = event.clientX - canvas.getBoundingClientRect().left;
-      const mouseY = event.clientY - canvas.getBoundingClientRect().top;
+      const mouseX = event.clientX - canvas.value.getBoundingClientRect().left;
+      const mouseY = event.clientY - canvas.value.getBoundingClientRect().top;
       const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
       const newScale = scale.value * zoomFactor;
       const offsetXChange =
@@ -244,7 +283,6 @@ export default defineComponent({
       }
 
       // Mouse click coordinates relative to the canvas
-      const canvas = event.target as HTMLCanvasElement;
       const mouseX = event.offsetX;
       const mouseY = event.offsetY;
 
@@ -257,45 +295,52 @@ export default defineComponent({
         { x: originalX, y: originalY },
         renderedObjects.value
       );
+
+      if (clickedObject && selectedTool.value === Tool.SELECT) {
+        selectedItem.value = clickedObject;
+        canvas.value.style.cursor = "grab";
+        updateSelectionBox(clickedObject, renderedObjects.value);
+      } else if (!clickedObject && selectedTool.value === Tool.SELECT) {
+        selectedItem.value = null;
+        updateSelectionBox(null, renderedObjects.value);
+      }
     };
 
     const setupObjects = () => {
-      const canvas = document.getElementById(
-        "tree-canvas"
-      ) as HTMLCanvasElement;
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.value.getContext("2d");
       if (!ctx) return;
       if (tree.value) renderedObjects.value = testDraw(ctx, tree.value);
+
+      // Listen for the `drawableUpdated` event
+      eventBus.on("updatedDrawable", drawCanvas);
+
+      centerOnFocalPoint(renderedObjects.value);
     };
 
     const drawCanvas = () => {
-      const canvas = document.getElementById(
-        "tree-canvas"
-      ) as HTMLCanvasElement;
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.value.getContext("2d");
       if (!ctx) return;
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
       ctx.save();
       ctx.translate(offsetX.value, offsetY.value);
       ctx.scale(scale.value, scale.value);
 
-      if (tree.value) renderedObjects.value = testDraw(ctx, tree.value);
+      if (tree.value && !renderedObjects.value)
+        renderedObjects.value = testDraw(ctx, tree.value);
+      else if (renderedObjects.value) {
+        redraw(ctx, renderedObjects.value);
+      }
 
       ctx.restore();
     };
 
     const centerCanvas = (centerX: number, centerY: number) => {
-      const canvas = document.getElementById(
-        "tree-canvas"
-      ) as HTMLCanvasElement;
-      if (!canvas) return;
-
       const dpr = window.devicePixelRatio || 1; // Account for high-DPI screens
 
       // Convert canvas dimensions to logical dimensions
-      const canvasWidth = canvas.width / dpr / scale.value;
-      const canvasHeight = canvas.height / dpr / scale.value;
+      const canvasWidth = canvas.value.width / dpr / scale.value;
+      const canvasHeight = canvas.value.height / dpr / scale.value;
 
       // Calculate the offset to center the content
       offsetX.value = (canvasWidth / 2 - centerX) * scale.value;

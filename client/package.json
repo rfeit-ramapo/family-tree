@@ -15,6 +15,7 @@
   "dependencies": {
     "axios": "^1.7.7",
     "bootstrap": "^5.3.3",
+    "mitt": "^3.0.1",
     "pug-plain-loader": "^1.1.0",
     "vue": "^3.4.29",
     "vue-router": "^4.4.5"

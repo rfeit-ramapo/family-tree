@@ -1,8 +1,14 @@
 import defaultPerson from "../assets/default_person.svg";
+import eventBus from "./eventBus";
 import { treeToNodes, type TreeWithMembers } from "./treeToNodes";
 
 interface CanvasState {
   ctx: CanvasRenderingContext2D;
+  x: number;
+  y: number;
+}
+
+export interface Position {
   x: number;
   y: number;
 }
@@ -14,6 +20,7 @@ abstract class DrawingConstants {
   static readonly SPACER_WIDTH = this.DEFAULT_WIDTH / 2;
   static readonly SPACER_HEIGHT = this.DEFAULT_HEIGHT * 0.75;
   static readonly LINE_WIDTH = 5;
+  static readonly SELECTOR_PADDING = 10;
 }
 
 export abstract class DrawableObject {
@@ -27,6 +34,10 @@ export abstract class DrawableObject {
 
   abstract draw(ctx: CanvasRenderingContext2D): void;
   abstract isInShape(point: { x: number; y: number }): boolean;
+  abstract toggleHover(toggle: boolean): void;
+  move(dx: number, dy: number) {
+    return;
+  }
 }
 
 export class DrawableNode extends DrawableObject {
@@ -35,10 +46,13 @@ export class DrawableNode extends DrawableObject {
   radius: number;
   displayName: string;
   displayImageURL: string | null;
+  lineWidth: number = DrawingConstants.LINE_WIDTH;
   borderColor: string;
   fillColor: string;
   node: Node;
   image: HTMLImageElement;
+  startRelationships: DrawableRelationship[] = []; // originating from this node
+  endRelationships: DrawableRelationship[] = []; // ending at this node
 
   constructor(x: number, y: number, node: Node) {
     super(x, y, node.id);
@@ -61,7 +75,15 @@ export class DrawableNode extends DrawableObject {
     }
   }
 
-  async draw(ctx: CanvasRenderingContext2D) {
+  draw(ctx: CanvasRenderingContext2D) {
+    if (this.borderColor === "blue") {
+      console.log(
+        "Drawing node",
+        this.id,
+        "with borderColor",
+        this.borderColor
+      );
+    }
     // Draw the background shape first
     drawRoundedRectFromLeft(
       ctx,
@@ -71,7 +93,7 @@ export class DrawableNode extends DrawableObject {
       this.height,
       this.radius,
       undefined,
-      DrawingConstants.LINE_WIDTH,
+      this.lineWidth,
       this.fillColor,
       this.borderColor
     );
@@ -81,6 +103,7 @@ export class DrawableNode extends DrawableObject {
     } else {
       this.image.onload = () => {
         this.drawImage(ctx);
+        eventBus.emit("updatedDrawable", this);
       };
     }
 
@@ -139,6 +162,31 @@ export class DrawableNode extends DrawableObject {
       x >= leftBound && x <= rightBound && y >= upperBound && y <= lowerBound
     );
   }
+
+  toggleHover(toggle: boolean) {
+    console.log("Toggling hover for node", this.id, "to", toggle);
+    this.borderColor = toggle
+      ? "green"
+      : this.node.isFocalPoint
+        ? "green"
+        : "black";
+    this.lineWidth = toggle
+      ? DrawingConstants.LINE_WIDTH * 2
+      : DrawingConstants.LINE_WIDTH;
+
+    eventBus.emit("updatedDrawable", this);
+  }
+
+  move(dx: number, dy: number) {
+    this.position.x += dx;
+    this.position.y += dy;
+    for (const relationship of this.startRelationships) {
+      relationship.move(dx, dy);
+    }
+    for (const relationship of this.endRelationships) {
+      relationship.move(dx, dy, true);
+    }
+  }
 }
 
 class DrawableRelationship extends DrawableObject {
@@ -146,6 +194,9 @@ class DrawableRelationship extends DrawableObject {
   endPosition: { x: number; y: number };
   lineColor: string;
   lineStyle: LineStyle;
+  lineWidth: number = DrawingConstants.LINE_WIDTH;
+  connectedRelationships: DrawableRelationship[] = [];
+  connectionPoint: number | null = null; // Relative position along the partner line
 
   constructor(
     x: number,
@@ -160,8 +211,64 @@ class DrawableRelationship extends DrawableObject {
     this.endPosition = endPosition;
     this.lineColor = lineColor;
     this.lineStyle = lineStyle;
+
+    // If this is a partner relationship, store connection points for child relationships
+    if (relationship instanceof PartnerRelationship) {
+      this.calculateConnectionPoints();
+    }
   }
 
+  // Calculate the connection point on the partner line
+  calculateConnectionPoints() {
+    if (this.relationship instanceof PartnerRelationship) {
+      // For each child relationship, calculate and store its connection point
+      for (const childRel of this.connectedRelationships) {
+        // Store the relative position along the partner line (0 to 1)
+        const relativeX =
+          (childRel.position.x - this.position.x) /
+          (this.endPosition.x - this.position.x);
+        childRel.connectionPoint = relativeX;
+      }
+    }
+  }
+
+  // Update connected relationship positions when the partner line moves
+  updateConnectedRelationships() {
+    if (this.relationship instanceof PartnerRelationship) {
+      for (const connected of this.connectedRelationships) {
+        if (connected.connectionPoint) {
+          // Calculate new position based on the relative position along the partner line
+          const newX =
+            this.position.x +
+            (this.endPosition.x - this.position.x) * connected.connectionPoint;
+          const newY =
+            this.position.y +
+            (this.endPosition.y - this.position.y) * connected.connectionPoint;
+
+          // Calculate the change in position
+          const dx = newX - connected.position.x;
+          const dy = newY - connected.position.y;
+
+          // Move the connected relationship
+          connected.move(dx, dy);
+        }
+      }
+    }
+  }
+
+  move(dx: number, dy: number, isEnd: boolean = false) {
+    if (isEnd) {
+      this.endPosition.x += dx;
+      this.endPosition.y += dy;
+    } else {
+      this.position.x += dx;
+      this.position.y += dy;
+    }
+    // Update connected relationships after moving
+    this.updateConnectedRelationships();
+  }
+
+  // Modified draw method to handle angled lines
   draw(ctx: CanvasRenderingContext2D) {
     drawLine(
       ctx,
@@ -170,7 +277,8 @@ class DrawableRelationship extends DrawableObject {
       this.endPosition.x,
       this.endPosition.y,
       this.lineColor,
-      this.lineStyle
+      this.lineStyle,
+      this.lineWidth
     );
   }
 
@@ -204,9 +312,126 @@ class DrawableRelationship extends DrawableObject {
     })();
 
     // Check if the point is within the line's tolerance
-    const tolerance = DrawingConstants.LINE_WIDTH / 2;
+    const tolerance = this.lineWidth;
     return distanceToSegment <= tolerance;
   }
+
+  toggleHover(toggle: boolean) {
+    console.log("Toggling hover for relationship", this.id, "to", toggle);
+    this.lineWidth = toggle
+      ? DrawingConstants.LINE_WIDTH * 2
+      : DrawingConstants.LINE_WIDTH;
+    console.log("New line width:", this.lineWidth);
+
+    eventBus.emit("updatedDrawable", this);
+  }
+}
+
+class SelectionBox extends DrawableObject {
+  selectedObject: DrawableObject | null = null;
+
+  constructor() {
+    super(
+      0,
+      0, // Initial position is irrelevant
+      "selector"
+    );
+  }
+
+  setSelection(selectedObject: DrawableObject | null) {
+    this.position.x = selectedObject
+      ? selectedObject.position.x - DrawingConstants.SELECTOR_PADDING
+      : 0;
+    this.position.y = selectedObject
+      ? selectedObject.position.y - DrawingConstants.SELECTOR_PADDING
+      : 0;
+
+    this.selectedObject = selectedObject;
+  }
+
+  draw(ctx: CanvasRenderingContext2D) {
+    // draw a thin rectangle around the selected node
+    if (this.selectedObject instanceof DrawableNode) {
+      const topLeftCorner = {
+        y: this.selectedObject.position.y - this.selectedObject.height / 2,
+        x: this.selectedObject.position.x,
+      };
+      topLeftCorner.x -= DrawingConstants.SELECTOR_PADDING;
+      topLeftCorner.y -= DrawingConstants.SELECTOR_PADDING;
+
+      drawRoundedRect(
+        ctx,
+        topLeftCorner.x,
+        topLeftCorner.y,
+        this.selectedObject.width + 2 * DrawingConstants.SELECTOR_PADDING,
+        this.selectedObject.height + 2 * DrawingConstants.SELECTOR_PADDING,
+        DrawingConstants.DEFAULT_RADIUS,
+        undefined,
+        DrawingConstants.LINE_WIDTH,
+        "transparent",
+        "blue"
+      );
+    }
+    // Draw two parallel lines above and below the relationship line
+    else if (this.selectedObject instanceof DrawableRelationship) {
+      const { x: x1, y: y1 } = this.selectedObject.position;
+      const { x: x2, y: y2 } = this.selectedObject.endPosition;
+
+      // Calculate the angle of the line
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+
+      // Calculate the perpendicular offsets for parallel lines
+      const perpX = Math.sin(angle) * DrawingConstants.SELECTOR_PADDING;
+      const perpY = -Math.cos(angle) * DrawingConstants.SELECTOR_PADDING;
+
+      // Calculate the points for the upper parallel line
+      const upperLine1 = {
+        x: x1 + perpX,
+        y: y1 + perpY,
+      };
+      const upperLine2 = {
+        x: x2 + perpX,
+        y: y2 + perpY,
+      };
+
+      // Calculate the points for the lower parallel line
+      const lowerLine1 = {
+        x: x1 - perpX,
+        y: y1 - perpY,
+      };
+      const lowerLine2 = {
+        x: x2 - perpX,
+        y: y2 - perpY,
+      };
+
+      // Draw both parallel lines
+      drawLine(
+        ctx,
+        upperLine1.x,
+        upperLine1.y,
+        upperLine2.x,
+        upperLine2.y,
+        "blue",
+        LineStyle.SOLID,
+        DrawingConstants.LINE_WIDTH
+      );
+      drawLine(
+        ctx,
+        lowerLine1.x,
+        lowerLine1.y,
+        lowerLine2.x,
+        lowerLine2.y,
+        "blue",
+        LineStyle.SOLID,
+        DrawingConstants.LINE_WIDTH
+      );
+    }
+  }
+
+  isInShape() {
+    return false;
+  }
+  toggleHover() {}
 }
 
 abstract class CanvasObject {
@@ -291,13 +516,15 @@ export class Node extends CanvasObject {
       const childUnitWidth = childRelationship.toNode.getUnitWidth();
       childRelationshipStart.x += childWidth * 0.5;
 
-      childRelationship.calculateLayout(
+      const childRelationshipDrawable = childRelationship.calculateLayout(
         { ctx, ...childRelationshipStart },
         renderList
       );
 
+      drawableNode.startRelationships.push(childRelationshipDrawable);
+
       // Draw the current descendant
-      childRelationship.toNode.calculateLayoutAsDescendant(
+      const childNode = childRelationship.toNode.calculateLayoutAsDescendant(
         {
           ctx,
           x: childRelationshipStart.x,
@@ -305,6 +532,7 @@ export class Node extends CanvasObject {
         },
         renderList
       );
+      childNode.endRelationships.push(childRelationshipDrawable);
 
       // Update position for the next relationship and descendant
       childRelationshipStart.x +=
@@ -314,17 +542,19 @@ export class Node extends CanvasObject {
 
     // Draw the partner relationship, if it exists
     if (this.partnerRelationship && !this.isPartner) {
-      this.partnerRelationship.calculateLayout(
-        {
-          ctx,
-          x: fromX + this.getWidth(),
-          y: fromY,
-        },
-        renderList
-      );
+      const partnerRelationshipDrawable =
+        this.partnerRelationship.calculateLayout(
+          {
+            ctx,
+            x: fromX + this.getWidth(),
+            y: fromY,
+          },
+          renderList
+        );
+      drawableNode.startRelationships.push(partnerRelationshipDrawable);
 
       // Draw the partner node
-      this.partnerRelationship.toNode.calculateLayout(
+      const drawablePartner = this.partnerRelationship.toNode.calculateLayout(
         {
           ctx,
           x: fromX + this.partnerRelationship.getWidth() + this.getWidth(),
@@ -332,7 +562,10 @@ export class Node extends CanvasObject {
         },
         renderList
       );
+      drawablePartner.endRelationships.push(partnerRelationshipDrawable);
     }
+
+    return drawableNode;
   }
 
   calculateLayoutAsDescendant(
@@ -342,13 +575,7 @@ export class Node extends CanvasObject {
     // Recalculate to find the left center based on top center
     const leftX = fromX - 0.5 * this.getWidth();
     const topY = fromY + 0.5 * DrawingConstants.DEFAULT_HEIGHT;
-    this.calculateLayout({ ctx, x: leftX, y: topY }, renderList);
-    if (this.partnerRelationship) {
-      this.partnerRelationship.calculateLayout(
-        { ctx, x: leftX + this.getWidth(), y: topY },
-        renderList
-      );
-    }
+    return this.calculateLayout({ ctx, x: leftX, y: topY }, renderList);
   }
 }
 
@@ -426,23 +653,26 @@ export abstract class Relationship extends CanvasObject {
         const childUnitWidth = childRelationship.toNode.getUnitWidth();
 
         childRelationshipStart.x += childWidth * 0.5;
-        childRelationship.calculateLayout(
+        const drawableChildRel = childRelationship.calculateLayout(
           { ctx, ...childRelationshipStart },
           renderList
         );
 
         // Draw the current descendant
-        childRelationship.toNode.calculateLayoutAsDescendant(
-          {
-            ctx,
-            x: childRelationshipStart.x,
-            y:
-              childRelationshipStart.y +
-              DrawingConstants.SPACER_HEIGHT +
-              DrawingConstants.DEFAULT_HEIGHT * 0.5,
-          },
-          renderList
-        );
+        const drawableChild =
+          childRelationship.toNode.calculateLayoutAsDescendant(
+            {
+              ctx,
+              x: childRelationshipStart.x,
+              y:
+                childRelationshipStart.y +
+                DrawingConstants.SPACER_HEIGHT +
+                DrawingConstants.DEFAULT_HEIGHT * 0.5,
+            },
+            renderList
+          );
+        // Ensure the drawings are connected
+        drawableChild.endRelationships.push(drawableChildRel);
 
         // Update position for the next relationship and descendant
         childRelationshipStart.x +=
@@ -450,6 +680,7 @@ export abstract class Relationship extends CanvasObject {
           (childUnitWidth - DrawingConstants.SPACER_WIDTH);
       }
     }
+    return drawableRelationship;
   }
 
   abstract getLength(): number;
@@ -537,6 +768,33 @@ export class PartnerRelationship extends Relationship {
 
   getLength() {
     return this.getWidth();
+  }
+
+  calculateLayout(
+    { ctx, x: fromX, y: fromY }: CanvasState,
+    renderList: DrawableObject[]
+  ) {
+    const drawableRelationship = super.calculateLayout(
+      { ctx, x: fromX, y: fromY },
+      renderList
+    ) as DrawableRelationship;
+
+    // Connect child relationships to the partner relationship
+    for (const childRel of this.childRelationships) {
+      const drawableChild = renderList.find(
+        (r): r is DrawableRelationship =>
+          r instanceof DrawableRelationship && r.relationship.id === childRel.id
+      );
+
+      if (drawableChild) {
+        drawableRelationship.connectedRelationships.push(drawableChild);
+      }
+    }
+
+    // Calculate initial connection points
+    drawableRelationship.calculateConnectionPoints();
+
+    return drawableRelationship;
   }
 }
 
@@ -721,12 +979,24 @@ export const testDraw = (
     return 0; // Keep the order unchanged for other cases
   });
 
+  // Add the selection box that will be updated when an object is selected
+  renderList.push(new SelectionBox());
+
   // Render the objects
   for (const obj of renderList) {
     obj.draw(ctx);
   }
 
   return renderList;
+};
+
+export const redraw = (
+  ctx: CanvasRenderingContext2D,
+  renderList: DrawableObject[]
+): void => {
+  for (const obj of renderList) {
+    obj.draw(ctx);
+  }
 };
 
 export function isPointInsideObject(
@@ -740,4 +1010,20 @@ export function isPointInsideObject(
     }
   }
   return null; // Return null if no object was clicked
+}
+
+export function updateSelectionBox(
+  selectedObject: DrawableObject | null,
+  renderList: DrawableObject[]
+) {
+  const selector = renderList.find(
+    (obj) => obj.id === "selector"
+  ) as SelectionBox;
+  // Move the selected node to the front of the render list
+  if (selectedObject instanceof DrawableNode) {
+    renderList.splice(renderList.indexOf(selectedObject), 1);
+    renderList.push(selectedObject);
+  }
+  selector.setSelection(selectedObject);
+  eventBus.emit("updatedDrawable", selector);
 }
