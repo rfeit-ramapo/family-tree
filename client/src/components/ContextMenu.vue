@@ -1,10 +1,11 @@
 <template lang="pug">
 
 .tree-context-menu(
-  v-if="contextMenuVisible" 
+  v-if="contextMenuVisible && hasMenuItems", 
   :style="{ top: `${contextMenuPosition.y}px`, left: `${contextMenuPosition.x}px`, position: 'absolute' }"
   )
   ul.context-menu-list
+    li.context-menu-item(v-if="showViewOption()" @click="emitEvent(ContextMenuEvent.VIEW)") View
     li.context-menu-item(v-if="showRenameOption()" @click="emitEvent(ContextMenuEvent.RENAME)") Rename
     li.context-menu-item(v-if="showEditOption()" @click="emitEvent(ContextMenuEvent.EDIT)") Edit
     li.context-menu-item(v-if="showDeleteOption()" @click="emitEvent(ContextMenuEvent.DELETE)") Delete
@@ -13,7 +14,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, type PropType } from "vue";
+import { computed, defineComponent, ref, type PropType } from "vue";
 import { ContextMenuType, ContextMenuEvent } from "../helpers/sharedTypes";
 
 export default defineComponent({
@@ -31,13 +32,27 @@ export default defineComponent({
       type: Object as PropType<{ x: number; y: number }>,
       default: () => ({ x: 0, y: 0 }),
     },
+    hasEditPerms: {
+      type: Boolean,
+      default: true,
+    },
   },
   setup(props, { emit }) {
     const showRenameOption = () => {
+      if (!props.hasEditPerms) return false;
       return props.contextMenuType === ContextMenuType.TREE;
     };
 
+    const showViewOption = () => {
+      if (props.hasEditPerms) return false;
+      return (
+        props.contextMenuType === ContextMenuType.NODE ||
+        props.contextMenuType === ContextMenuType.RELATIONSHIP
+      );
+    };
+
     const showEditOption = () => {
+      if (!props.hasEditPerms) return false;
       return (
         props.contextMenuType === ContextMenuType.NODE ||
         props.contextMenuType === ContextMenuType.RELATIONSHIP
@@ -45,6 +60,7 @@ export default defineComponent({
     };
 
     const showDeleteOption = () => {
+      if (!props.hasEditPerms) return false;
       return (
         props.contextMenuType === ContextMenuType.NODE ||
         props.contextMenuType === ContextMenuType.RELATIONSHIP ||
@@ -53,10 +69,12 @@ export default defineComponent({
     };
 
     const showAddNodeOption = () => {
+      if (!props.hasEditPerms) return false;
       return props.contextMenuType === ContextMenuType.CANVAS;
     };
 
     const showConnectOption = () => {
+      if (!props.hasEditPerms) return false;
       return props.contextMenuType === ContextMenuType.NODE;
     };
 
@@ -64,12 +82,25 @@ export default defineComponent({
       emit(eventType);
     };
 
+    const hasMenuItems = computed(() => {
+      return (
+        showRenameOption() ||
+        showEditOption() ||
+        showDeleteOption() ||
+        showAddNodeOption() ||
+        showConnectOption() ||
+        showViewOption()
+      );
+    });
+
     return {
+      showViewOption,
       showRenameOption,
       showEditOption,
       showDeleteOption,
       showAddNodeOption,
       showConnectOption,
+      hasMenuItems,
       emitEvent,
     };
   },

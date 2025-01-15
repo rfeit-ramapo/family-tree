@@ -11,4 +11,5 @@ export enum ContextMenuEvent {
   ADD_NODE = "add-node",
   CONNECT = "connect",
   EDIT = "edit",
+  VIEW = "view",
 }

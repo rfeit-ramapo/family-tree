@@ -29,6 +29,7 @@ export default class DBManager {
     result: QueryResult,
     formatter: (rec: RawT) => T
   ) {
+    console.log(result.records);
     const test = result.records.map((rec) => formatter(rec.toObject()));
     console.log(test);
     return test;

@@ -24,10 +24,12 @@
         :contextMenuType="contextMenuType"
         :contextMenuVisible="contextMenuVisible"
         :contextMenuPosition="contextMenuPosition"
+        :editPerms="hasEditPerms"
         @edit=""
         @delete=""
         @connect=""
         @add-node=""
+        @view=""
       )
     SideBar(@toolChange="changeTool")
 </template>
@@ -48,7 +50,7 @@ import {
 } from "@/helpers/canvasUtils";
 import type { TreeWithMembers } from "@/helpers/treeToNodes";
 import eventBus from "@/helpers/eventBus";
-import { ContextMenuType } from "../helpers/sharedTypes";
+import { ContextMenuType } from "@/helpers/sharedTypes";
 import ContextMenu from "./ContextMenu.vue";
 
 export default defineComponent({
@@ -78,6 +80,7 @@ export default defineComponent({
     const hoveredObject = ref<DrawableObject | null>(null);
     const contextMenuVisible = ref(false);
     const contextMenuPosition: Ref<Position> = ref({ x: 0, y: 0 });
+    const hasEditPerms = ref(false);
 
     const contextMenuType = ref<ContextMenuType>(ContextMenuType.CANVAS);
 
@@ -183,7 +186,11 @@ export default defineComponent({
         }
 
         tree.value = await response.json();
-        errorMessage.value = null;
+        const userId = localStorage.getItem("userId");
+        hasEditPerms.value =
+          userId && tree.value
+            ? tree.value.metadata.editors.includes(userId)
+            : false;
       } catch (error) {
         console.error("Error fetching the tree:", error);
         errorMessage.value =
@@ -489,6 +496,7 @@ export default defineComponent({
       contextMenuPosition,
       contextMenuType,
       ContextMenuType,
+      hasEditPerms,
     };
   },
 });

@@ -15,6 +15,8 @@ export interface Tree {
   dateCreated: Date;
   lastModified: Date;
   isPublic: boolean;
+  editors: string[];
+  viewers: string[];
 }
 
 export interface TreeMember {
@@ -31,7 +33,7 @@ export interface TreeMember {
 }
 
 export interface TreeWithMembers {
-  tree: Tree;
+  metadata: Tree;
   focalPoint?: TreeMember;
   partner?: TreeMember;
   parent1?: TreeMember;

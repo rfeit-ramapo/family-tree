@@ -261,14 +261,18 @@ app.get("/api/tree/:treeId", async (req, res) => {
   try {
     // Fetch the tree from the database
     fullTree = await DBTree.getTree(treeId);
-    metadata = fullTree.tree;
+    metadata = fullTree.metadata;
   } catch (error) {
     console.error("Error fetching tree:", error);
     res.status(500).json({ message: "Failed to fetch tree" });
     return;
   }
 
-  if (!metadata.isPublic && metadata.creator !== userId) {
+  if (
+    !metadata.isPublic &&
+    metadata.creator !== userId &&
+    (!userId || metadata.viewers.indexOf(userId) === -1)
+  ) {
     res.status(403).json({ message: "Unauthorized: Tree is private" });
     return;
   }

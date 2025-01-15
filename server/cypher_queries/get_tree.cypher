@@ -1,4 +1,6 @@
 MATCH (t:Tree {id: $id})<-[:OWNS_TREE]-(u:User)
+OPTIONAL MATCH (editor:User)-[:CAN_EDIT]->(t)
+OPTIONAL MATCH (viewer:User)-[:CAN_VIEW]->(t)
 OPTIONAL MATCH (t)-[:FOCAL_POINT]->(p:Person)
 
 // Partner
@@ -24,15 +26,24 @@ OPTIONAL MATCH (p)-[:PARENT_OF]->(soloChild:Person)
   WHERE NOT EXISTS { MATCH (soloChild)<-[:PARENT_OF]-(:Person) }
 
 // Return
-RETURN 
-  t{.*, creator: u.id} AS tree,
-  p AS focalPoint,
-  partner,
-  parent1,
-  parent2,
+WITH t, u, partner, parent1, parent2, p AS focalPoint, 
+  COLLECT(DISTINCT editor.id) AS editors, 
+  COLLECT(DISTINCT viewer.id) AS viewers, 
   COLLECT(DISTINCT sibling) AS siblings,
   COLLECT(DISTINCT halfSiblingP1) AS halfSiblingsP1,
   COLLECT(DISTINCT halfSiblingP2) AS halfSiblingsP2,
   COLLECT(DISTINCT partnerChild) AS partnerChildren,
   COLLECT(DISTINCT soloChild) AS soloChildren
+
+RETURN 
+  t{.*, creator: u.id, editors, viewers} AS metadata,
+  focalPoint,
+  partner,
+  parent1,
+  parent2,
+  siblings,
+  halfSiblingsP1,
+  halfSiblingsP2,
+  partnerChildren,
+  soloChildren
 LIMIT 1

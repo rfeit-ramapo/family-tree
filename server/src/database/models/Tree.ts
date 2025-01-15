@@ -5,7 +5,10 @@ import path from "path";
 import { v4 as uuidv4 } from "uuid";
 
 export class DBTree extends DBManager {
-  static formatTree({ tree: rawTree }: { tree: Tree }) {
+  static formatTree(rawObject: { tree: Tree } | { metadata: Tree }) {
+    const rawTree =
+      "metadata" in rawObject ? rawObject.metadata : rawObject.tree;
+
     rawTree.dateCreated = (
       rawTree.dateCreated as unknown as DateTime
     ).toStandardDate();
@@ -21,7 +24,7 @@ export class DBTree extends DBManager {
   }
 
   static formatFullTree(rawTree: TreeWithMembers) {
-    rawTree.tree = DBTree.formatTree(rawTree);
+    rawTree.metadata = DBTree.formatTree(rawTree);
     rawTree.focalPoint = rawTree.focalPoint
       ? ((rawTree.focalPoint as unknown as Node).properties as TreeMember)
       : undefined;
@@ -230,6 +233,8 @@ export interface Tree {
   creator: string;
   name: string;
   id: string;
+  editors: string[];
+  viewers: string[];
   dateCreated?: Date;
   lastModified?: Date;
   isPublic?: boolean;
@@ -249,7 +254,7 @@ export interface TreeMember {
 }
 
 export interface TreeWithMembers {
-  tree: Tree;
+  metadata: Tree;
   focalPoint?: TreeMember;
   partner?: TreeMember;
   parent1?: TreeMember;
