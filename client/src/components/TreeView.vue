@@ -17,13 +17,21 @@
         @wheel="onZoom"
         @click="onCanvasClick"
         @hover="onHover"
+        @contextmenu.prevent="onRightClick($event)"
       )
+
+    .tree-context-menu(v-if="contextMenuVisible" :style="{ top: `${contextMenuPosition.y}px`, left: `${contextMenuPosition.x}px`, position: 'absolute' }")
+      ul.context-menu-list
+        li.context-menu-item(v-if="contextMenuType !== ContextMenuType.CANVAS" @click="showRenameModal") Edit
+        li.context-menu-item(v-if="contextMenuType !== ContextMenuType.CANVAS" @click="showDeleteModal") Delete
+        li.context-menu-item(v-if="contextMenuType === ContextMenuType.CANVAS" @click="showAddNodeModal") Create Node
+        li.context-menu-item(v-if="contextMenuType === ContextMenuType.NODE" @click="showConnectModal") Connect
 
     SideBar(@toolChange="changeTool")
 </template>
 
 <script lang="ts">
-import { ref, defineComponent, type Ref, onMounted } from "vue";
+import { ref, defineComponent, type Ref, onMounted, onUnmounted } from "vue";
 import UpperBanner from "./UpperBanner.vue";
 import SideBar, { Tool } from "./SideBar.vue";
 import {
@@ -37,6 +45,12 @@ import {
 } from "@/helpers/canvasUtils";
 import type { TreeWithMembers } from "@/helpers/treeToNodes";
 import eventBus from "@/helpers/eventBus";
+
+enum ContextMenuType {
+  NODE,
+  RELATIONSHIP,
+  CANVAS,
+}
 
 export default defineComponent({
   name: "TreeView",
@@ -62,6 +76,10 @@ export default defineComponent({
     const selectedTool = ref<Tool>(Tool.PAN);
     const selectedItem = ref<DrawableObject | null>(null);
     const hoveredObject = ref<DrawableObject | null>(null);
+    const contextMenuVisible = ref(false);
+    const contextMenuPosition: Ref<Position> = ref({ x: 0, y: 0 });
+
+    const contextMenuType = ref<ContextMenuType>(ContextMenuType.CANVAS);
 
     const calcOriginalCoords = (event: MouseEvent): Position => {
       const originalX = (event.offsetX - offsetX.value) / scale.value;
@@ -102,6 +120,40 @@ export default defineComponent({
       // Scale drawing context to handle high-DPI screens
       ctx?.scale(dpr, dpr);
       canvas.value.style.cursor = "grab";
+
+      const resizeCanvas = () => {
+        const dpr = window.devicePixelRatio || 1;
+        const container = canvas.value?.parentElement;
+        if (!container || !canvas.value) return;
+
+        // Get the container's computed dimensions
+        const styles = window.getComputedStyle(container);
+        const containerWidth = parseInt(styles.width, 10);
+        const containerHeight = parseInt(styles.height, 10);
+
+        // Update canvas size maintaining aspect ratio
+        canvas.value.style.width = `${containerWidth}px`;
+        canvas.value.style.height = `${containerHeight}px`;
+
+        // Set actual canvas dimensions accounting for DPR
+        canvas.value.width = containerWidth * dpr;
+        canvas.value.height = containerHeight * dpr;
+
+        // Scale the context to handle the device pixel ratio
+        ctx?.scale(dpr, dpr);
+
+        // Redraw canvas contents
+        drawCanvas();
+      };
+
+      // Add resize observer for the canvas container
+      const resizeObserver = new ResizeObserver(() => {
+        resizeCanvas();
+      });
+
+      if (canvas.value.parentElement) {
+        resizeObserver.observe(canvas.value.parentElement);
+      }
     };
 
     const fetchTreeMetadata = async () => {
@@ -306,6 +358,34 @@ export default defineComponent({
       }
     };
 
+    const onRightClick = (event: MouseEvent) => {
+      // Exit if not in select mode
+      if (selectedTool.value !== Tool.SELECT) return;
+
+      // Try to select an object
+      onCanvasClick(event);
+
+      // Determine the type of context menu to show
+      contextMenuType.value = !selectedItem.value
+        ? ContextMenuType.CANVAS
+        : selectedItem.value instanceof DrawableNode
+          ? ContextMenuType.NODE
+          : ContextMenuType.RELATIONSHIP;
+
+      // Show custom context menu
+
+      // Change cursor
+      canvas.value.style.cursor = "default";
+
+      const canvasRect = canvas.value.getBoundingClientRect();
+      const menuX = event.clientX - canvasRect.left;
+      const menuY = event.clientY - canvasRect.top + 80;
+
+      // Update context menu position
+      contextMenuPosition.value = { x: menuX, y: menuY };
+      contextMenuVisible.value = true;
+    };
+
     const setupObjects = () => {
       const ctx = canvas.value.getContext("2d");
       if (!ctx) return;
@@ -369,15 +449,8 @@ export default defineComponent({
       }
     };
 
-    const isCursorGrab = () => {
-      if (selectedTool.value === Tool.PAN) return true;
-
-      if (selectedTool.value == Tool.SELECT && selectedItem.value) {
-        // Get mouse coordinates relative to the canvas
-        const x = 0;
-        const y = 0;
-        return selectedItem.value.isInShape({ x: 0, y: 0 });
-      }
+    const hideContextMenu = () => {
+      contextMenuVisible.value = false;
     };
 
     onMounted(async () => {
@@ -385,6 +458,12 @@ export default defineComponent({
 
       await fetchTreeMetadata();
       setupObjects();
+      document.addEventListener("click", hideContextMenu);
+    });
+
+    onUnmounted(() => {
+      eventBus.off("updatedDrawable", drawCanvas);
+      document.removeEventListener("click", hideContextMenu);
     });
 
     return {
@@ -401,6 +480,11 @@ export default defineComponent({
       onHover,
       selectedTool,
       Tool,
+      onRightClick,
+      contextMenuVisible,
+      contextMenuPosition,
+      contextMenuType,
+      ContextMenuType,
     };
   },
 });
@@ -410,10 +494,9 @@ export default defineComponent({
 .main-container
   display flex
   flex-direction column
-  height 100vh
+  height 100%
 
 .canvas-container
-  flex-grow 1
   display flex
   justify-content center
   align-items center
@@ -423,4 +506,28 @@ export default defineComponent({
   width 100%
   height 100%
   border 3px solid #ccc
+
+.tree-context-menu
+  position absolute
+  background-color white
+  border 1px solid #ccc
+  border-radius 4px
+  box-shadow 0 2px 8px rgba(0, 0, 0, 0.15)
+  z-index 1000
+  min-width 150px
+  padding 4px 0
+
+.context-menu-list
+  list-style-type none
+  margin 0
+  padding 0
+
+.context-menu-item
+  padding 8px 16px
+  cursor pointer
+  font-size 16px
+  color #333
+  transition background-color 0.2s ease
+  &:hover
+    background-color #f5f5f5
 </style>
