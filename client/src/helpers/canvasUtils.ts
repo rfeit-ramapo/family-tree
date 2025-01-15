@@ -189,7 +189,7 @@ export class DrawableNode extends DrawableObject {
   }
 }
 
-class DrawableRelationship extends DrawableObject {
+export class DrawableRelationship extends DrawableObject {
   relationship: Relationship;
   endPosition: { x: number; y: number };
   lineColor: string;

@@ -14,7 +14,7 @@
         .modal-buttons
           button.modal-buttons(@click="onCancel") Cancel
           button.modal-buttons(@click="onConfirm") Confirm
-    </template>
+</template>
 
 <style lang="stylus" scoped>
 .modal-overlay
@@ -98,14 +98,6 @@ export default defineComponent({
     inputPlaceholder: {
       type: String,
       default: "Enter a value",
-    },
-    confirmAction: {
-      type: Function,
-      default: () => {},
-    },
-    hideModal: {
-      type: Function,
-      default: () => {},
     },
   },
   setup(props, { emit }) {

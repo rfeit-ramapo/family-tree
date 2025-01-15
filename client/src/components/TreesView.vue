@@ -43,10 +43,13 @@
       p Last accessed: {{ formatDate(tree.lastModified) }}
       // Additional tree information can go here
 
-  .tree-context-menu(v-if="contextMenuVisible" :style="contextMenuStyle")
-    ul.context-menu-list
-      li.context-menu-item(@click="showRenameModal") Rename
-      li.context-menu-item(@click="showDeleteModal") Delete
+  ContextMenu(
+    :contextMenuType="ContextMenuType.TREE"
+    :contextMenuVisible="contextMenuVisible"
+    :contextMenuPosition="contextMenuPosition"
+    @rename="showRenameModal"
+    @delete="showDeleteModal"
+  )
 
   // Floating '+' button to create a new tree
   button.add-tree-button(@click="showCreateModal") +
@@ -56,15 +59,10 @@
 import UpperBanner from "./UpperBanner.vue";
 import InputModal from "./InputModal.vue";
 
-import {
-  defineComponent,
-  ref,
-  onMounted,
-  onBeforeMount,
-  type Ref,
-  computed,
-} from "vue";
+import { defineComponent, ref, onMounted, onBeforeMount, type Ref } from "vue";
 import router from "@/router";
+import { ContextMenuType } from "@/helpers/sharedTypes";
+import ContextMenu from "./ContextMenu.vue";
 
 interface Tree {
   creator: string;
@@ -79,6 +77,7 @@ export default defineComponent({
   components: {
     UpperBanner,
     InputModal,
+    ContextMenu,
   },
   setup() {
     const trees: Ref<Tree[]> = ref([]);
@@ -169,12 +168,6 @@ export default defineComponent({
     const contextMenuVisible = ref(false);
     const contextMenuPosition = ref({ x: 0, y: 0 });
     const selectedTree = ref<Tree | null>(null);
-
-    // Add computed property for context menu style
-    const contextMenuStyle = computed(() => ({
-      top: `${contextMenuPosition.value.y}px`,
-      left: `${contextMenuPosition.value.x}px`,
-    }));
 
     // Add click event listener to close context menu
     const handleClickOutside = (event: MouseEvent) => {
@@ -292,7 +285,6 @@ export default defineComponent({
       hideContextMenu,
       contextMenuVisible,
       contextMenuPosition,
-      contextMenuStyle,
       selectedTree,
       renameTree,
       showCreateModal,
@@ -306,6 +298,7 @@ export default defineComponent({
       hideDeleteModal,
       deleteTree,
       viewTree,
+      ContextMenuType,
     };
   },
 
@@ -411,28 +404,4 @@ button
     transition background-color 0.3s ease
     &:hover
       background-color #247a48
-
-.tree-context-menu
-  position absolute
-  background-color white
-  border 1px solid #ccc
-  border-radius 4px
-  box-shadow 0 2px 8px rgba(0, 0, 0, 0.15)
-  z-index 1000
-  min-width 150px
-  padding 4px 0
-
-.context-menu-list
-  list-style-type none
-  margin 0
-  padding 0
-
-.context-menu-item
-  padding 8px 16px
-  cursor pointer
-  font-size 16px
-  color #333
-  transition background-color 0.2s ease
-  &:hover
-    background-color #f5f5f5
 </style>

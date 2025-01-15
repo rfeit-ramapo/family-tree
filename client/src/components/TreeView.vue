@@ -20,13 +20,15 @@
         @contextmenu.prevent="onRightClick($event)"
       )
 
-    .tree-context-menu(v-if="contextMenuVisible" :style="{ top: `${contextMenuPosition.y}px`, left: `${contextMenuPosition.x}px`, position: 'absolute' }")
-      ul.context-menu-list
-        li.context-menu-item(v-if="contextMenuType !== ContextMenuType.CANVAS" @click="showRenameModal") Edit
-        li.context-menu-item(v-if="contextMenuType !== ContextMenuType.CANVAS" @click="showDeleteModal") Delete
-        li.context-menu-item(v-if="contextMenuType === ContextMenuType.CANVAS" @click="showAddNodeModal") Create Node
-        li.context-menu-item(v-if="contextMenuType === ContextMenuType.NODE" @click="showConnectModal") Connect
-
+      ContextMenu(
+        :contextMenuType="contextMenuType"
+        :contextMenuVisible="contextMenuVisible"
+        :contextMenuPosition="contextMenuPosition"
+        @edit=""
+        @delete=""
+        @connect=""
+        @add-node=""
+      )
     SideBar(@toolChange="changeTool")
 </template>
 
@@ -37,6 +39,7 @@ import SideBar, { Tool } from "./SideBar.vue";
 import {
   DrawableNode,
   DrawableObject,
+  DrawableRelationship,
   isPointInsideObject,
   redraw,
   testDraw,
@@ -45,18 +48,15 @@ import {
 } from "@/helpers/canvasUtils";
 import type { TreeWithMembers } from "@/helpers/treeToNodes";
 import eventBus from "@/helpers/eventBus";
-
-enum ContextMenuType {
-  NODE,
-  RELATIONSHIP,
-  CANVAS,
-}
+import { ContextMenuType } from "../helpers/sharedTypes";
+import ContextMenu from "./ContextMenu.vue";
 
 export default defineComponent({
   name: "TreeView",
   components: {
     UpperBanner,
     SideBar,
+    ContextMenu,
   },
   props: {
     treeId: {
@@ -210,7 +210,11 @@ export default defineComponent({
         // Change the cursor to a closed hand while dragging
         canvas.value.style.cursor = "grabbing";
       } else if (selectedTool.value === Tool.SELECT) {
-        // If the user is on a selected object, start dragging it
+        // If the selected object is a relationship, don't allow dragging
+        if (selectedItem.value instanceof DrawableRelationship) {
+          return;
+        }
+        // If the user is on a selected node, start dragging it
         const originalCoords = calcOriginalCoords(event);
         if (
           selectedItem.value &&
@@ -379,7 +383,7 @@ export default defineComponent({
 
       const canvasRect = canvas.value.getBoundingClientRect();
       const menuX = event.clientX - canvasRect.left;
-      const menuY = event.clientY - canvasRect.top + 80;
+      const menuY = event.clientY - canvasRect.top;
 
       // Update context menu position
       contextMenuPosition.value = { x: menuX, y: menuY };
@@ -491,12 +495,18 @@ export default defineComponent({
 </script>
 
 <style lang="stylus" scoped>
-.main-container
-  display flex
-  flex-direction column
-  height 100%
+html, body, #app
+  height 100vh
+  margin 0
+  padding 0
+  overflow hidden
 
 .canvas-container
+  position absolute
+  top 80px
+  left 0
+  right 0
+  bottom 0
   display flex
   justify-content center
   align-items center
@@ -506,28 +516,5 @@ export default defineComponent({
   width 100%
   height 100%
   border 3px solid #ccc
-
-.tree-context-menu
-  position absolute
-  background-color white
-  border 1px solid #ccc
-  border-radius 4px
-  box-shadow 0 2px 8px rgba(0, 0, 0, 0.15)
-  z-index 1000
-  min-width 150px
-  padding 4px 0
-
-.context-menu-list
-  list-style-type none
-  margin 0
-  padding 0
-
-.context-menu-item
-  padding 8px 16px
-  cursor pointer
-  font-size 16px
-  color #333
-  transition background-color 0.2s ease
-  &:hover
-    background-color #f5f5f5
+  box-sizing border-box
 </style>
