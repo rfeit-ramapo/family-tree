@@ -416,6 +416,215 @@ export class DBTree extends DBManager {
 
     return this.formatQueryResult(result, this.formatPersonDetails);
   }
+
+  static async updatePerson(person: TreeMember) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the cypher query file
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      "update_person.cypher"
+    );
+    const query = fs.readFileSync(queryPath, "utf-8");
+
+    try {
+      await session.executeWrite((t) =>
+        t.run(query, {
+          id: person.id,
+          firstName: person.firstName,
+          middleName: person.middleName,
+          lastName: person.lastName,
+          dateOfBirth: person.dateOfBirth
+            ? DateTime.fromStandardDate(person.dateOfBirth)
+            : undefined,
+          dateOfDeath: person.dateOfDeath
+            ? DateTime.fromStandardDate(person.dateOfDeath)
+            : undefined,
+          note: person.note,
+          gender: person.gender,
+          location: person.location,
+          imageUrl: person.imageUrl,
+        })
+      );
+    } finally {
+      await session.close();
+    }
+
+    return;
+  }
+
+  static async createPerson(treeId: string, person: Omit<TreeMember, "id">) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the cypher query file
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      "create_person.cypher"
+    );
+    const query = fs.readFileSync(queryPath, "utf-8");
+
+    try {
+      await session.executeWrite((t) =>
+        t.run(query, {
+          treeId,
+          id: uuidv4(),
+          firstName: person.firstName,
+          middleName: person.middleName,
+          lastName: person.lastName,
+          dateOfBirth: person.dateOfBirth
+            ? DateTime.fromStandardDate(person.dateOfBirth)
+            : undefined,
+          dateOfDeath: person.dateOfDeath
+            ? DateTime.fromStandardDate(person.dateOfDeath)
+            : undefined,
+          note: person.note,
+          gender: person.gender,
+          location: person.location,
+          imageUrl: person.imageUrl,
+        })
+      );
+    } finally {
+      await session.close();
+    }
+
+    return;
+  }
+
+  static async addRelation(
+    originId: string,
+    targetId: string,
+    relation: "PARENT_OF" | "PARTNER_OF"
+  ) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the cypher query file
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      "add_relation.cypher"
+    );
+    const query = fs.readFileSync(queryPath, "utf-8");
+
+    try {
+      await session.executeWrite((t) =>
+        t.run(query, {
+          originId,
+          targetId,
+          relation,
+        })
+      );
+    } finally {
+      await session.close();
+    }
+
+    return;
+  }
+
+  static async editCurrentPartner(originId: string, targetId: string) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the cypher query file
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      "edit_current_partner.cypher"
+    );
+    const query = fs.readFileSync(queryPath, "utf-8");
+
+    try {
+      await session.executeWrite((t) =>
+        t.run(query, {
+          originId,
+          targetId,
+        })
+      );
+    } finally {
+      await session.close();
+    }
+
+    return;
+  }
+
+  static async removeRelation(originId: string, targetId: string) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the cypher query file
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      "remove_relation.cypher"
+    );
+
+    const query = fs.readFileSync(queryPath, "utf-8");
+
+    try {
+      await session.executeWrite((t) =>
+        t.run(query, {
+          originId,
+          targetId,
+        })
+      );
+    } finally {
+      await session.close();
+    }
+
+    return;
+  }
+
+  static async getSuggestedRelations(
+    originId: string,
+    relation: "PARENT" | "PARTNER" | "CHILD"
+  ) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the cypher query file
+    const queryFile =
+      relation === "PARENT"
+        ? "suggest_parents.cypher"
+        : relation === "CHILD"
+        ? "suggest_children.cypher"
+        : "suggest_partners.cypher";
+
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      queryFile
+    );
+    const query = fs.readFileSync(queryPath, "utf-8");
+
+    let result;
+    try {
+      result = await session.executeRead((t) =>
+        t.run(query, {
+          id: originId,
+        })
+      );
+    } finally {
+      await session.close();
+    }
+
+    return;
+  }
 }
 
 export interface Tree {

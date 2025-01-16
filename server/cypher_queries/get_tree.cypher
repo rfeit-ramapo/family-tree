@@ -9,21 +9,20 @@ OPTIONAL MATCH (p)-[:PARTNER_OF {current: true}]-(partner:Person)
 // Parents
 OPTIONAL MATCH (p)<-[:PARENT_OF]-(parent1:Person)
 OPTIONAL MATCH (p)<-[:PARENT_OF]-(parent2:Person)
-  WHERE parent1.id IS NOT NULL AND parent2.id IS NOT NULL AND parent1.id <> parent2.id
+  WHERE parent1.id <> parent2.id
 
 // Siblings
 OPTIONAL MATCH (parent1)-[:PARENT_OF]->(sibling:Person)<-[:PARENT_OF]-(parent2)
-  WHERE sibling.id IS NOT NULL AND sibling.id <> p.id
+  WHERE sibling.id <> p.id
 OPTIONAL MATCH (parent1)-[:PARENT_OF]->(halfSiblingP1:Person)
   WHERE NOT (parent2)-[:PARENT_OF]->(halfSiblingP1) AND halfSiblingP1.id <> p.id
 OPTIONAL MATCH (parent2)-[:PARENT_OF]->(halfSiblingP2:Person)
   WHERE NOT (parent1)-[:PARENT_OF]->(halfSiblingP2) AND halfSiblingP2.id <> p.id
 
 // Children (and their partners)
-OPTIONAL MATCH (p)-[:PARENT_OF]->(partnerChild:Person)
-  WHERE EXISTS { MATCH (partnerChild)<-[:PARENT_OF]-(partner:Person) }
+OPTIONAL MATCH (p)-[:PARENT_OF]->(partnerChild:Person)<-[:PARENT_OF]-(partner)
 OPTIONAL MATCH (p)-[:PARENT_OF]->(soloChild:Person)
-  WHERE NOT EXISTS { MATCH (soloChild)<-[:PARENT_OF]-(:Person) }
+  WHERE NOT soloChild = partnerChild
 
 // Return
 WITH t, u, partner, parent1, parent2, p AS root, 
@@ -37,7 +36,7 @@ WITH t, u, partner, parent1, parent2, p AS root,
 
 RETURN 
   t{.*, creator: u.id, editors, viewers} AS metadata,
-  focalPoint,
+  root,
   partner,
   parent1,
   parent2,
