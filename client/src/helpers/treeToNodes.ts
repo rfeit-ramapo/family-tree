@@ -32,9 +32,17 @@ export interface TreeMember {
   imageUrl?: string;
 }
 
+export type Person = TreeMember & {
+  relationToRoot: string;
+  parents: TreeMember[];
+  currentPartner?: TreeMember;
+  partners: TreeMember[];
+  children: TreeMember[];
+};
+
 export interface TreeWithMembers {
   metadata: Tree;
-  focalPoint?: TreeMember;
+  root?: TreeMember;
   partner?: TreeMember;
   parent1?: TreeMember;
   parent2?: TreeMember;
@@ -47,10 +55,10 @@ export interface TreeWithMembers {
 
 // Convert a tree into a list of nodes and relationships
 export const treeToNodes = (tree: TreeWithMembers) => {
-  if (!tree.focalPoint) return;
+  if (!tree.root) return;
 
   // Convert all members to nodes
-  const focalPoint = memberToNode(tree.focalPoint, false);
+  const focalPoint = memberToNode(tree.root, false);
   focalPoint.isFocalPoint = true;
   const partner = tree.partner ? memberToNode(tree.partner, true) : null;
   const parent1 = tree.parent1 ? memberToNode(tree.parent1, false) : null;

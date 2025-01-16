@@ -280,6 +280,50 @@ app.get("/api/tree/:treeId", async (req, res) => {
   res.status(200).json(fullTree);
 });
 
+app.get("/api/person/:personId", async (req, res) => {
+  const { personId } = req.params;
+  const { rootId } = req.body;
+
+  const authHeader = req.headers.authorization;
+  let userId: string | null = null;
+
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.split(" ")[1];
+
+    // Verify the token
+    try {
+      const ticket = await authClient.verifyIdToken({
+        idToken: token,
+        audience: process.env.AUTH_CLIENT as string,
+      });
+      const payload = ticket.getPayload();
+      userId = payload?.sub || null; // User's unique Google ID
+    } catch (error) {
+      console.error("Token verification failed:", error);
+    }
+  }
+
+  let personData;
+  try {
+    personData = await DBTree.getPersonDetails(personId, rootId);
+  } catch (error) {
+    console.error("Error fetching person:", error);
+    res.status(500).json({ message: "Failed to fetch person" });
+    return;
+  }
+
+  if (
+    !personData.isPublic &&
+    personData.creator !== userId &&
+    (!userId || personData.viewers.indexOf(userId) === -1)
+  ) {
+    res.status(403).json({ message: "Unauthorized: Person is private" });
+    return;
+  }
+
+  res.status(200).json(personData);
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

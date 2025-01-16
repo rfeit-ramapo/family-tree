@@ -3,6 +3,7 @@ import HomePage from "../components/HomePage.vue"; // Create this component
 import LoginView from "../components/LoginView.vue";
 import TreesView from "@/components/TreesView.vue";
 import TreeView from "@/components/TreeView.vue";
+import PersonView from "@/components/PersonView.vue";
 
 const routes = [
   {
@@ -26,6 +27,11 @@ const routes = [
     name: "Tree",
     component: TreeView,
     props: true,
+  },
+  {
+    path: "/dev-test",
+    name: "DevTest",
+    component: PersonView, // This is a test page
   },
 ];
 

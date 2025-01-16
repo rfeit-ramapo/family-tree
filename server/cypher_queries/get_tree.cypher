@@ -1,7 +1,7 @@
 MATCH (t:Tree {id: $id})<-[:OWNS_TREE]-(u:User)
 OPTIONAL MATCH (editor:User)-[:CAN_EDIT]->(t)
 OPTIONAL MATCH (viewer:User)-[:CAN_VIEW]->(t)
-OPTIONAL MATCH (t)-[:FOCAL_POINT]->(p:Person)
+OPTIONAL MATCH (t)-[:ROOT]->(p:Person)
 
 // Partner
 OPTIONAL MATCH (p)-[:PARTNER_OF {current: true}]-(partner:Person)
@@ -26,7 +26,7 @@ OPTIONAL MATCH (p)-[:PARENT_OF]->(soloChild:Person)
   WHERE NOT EXISTS { MATCH (soloChild)<-[:PARENT_OF]-(:Person) }
 
 // Return
-WITH t, u, partner, parent1, parent2, p AS focalPoint, 
+WITH t, u, partner, parent1, parent2, p AS root, 
   COLLECT(DISTINCT editor.id) AS editors, 
   COLLECT(DISTINCT viewer.id) AS viewers, 
   COLLECT(DISTINCT sibling) AS siblings,
