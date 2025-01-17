@@ -4,8 +4,8 @@ SET p.firstName = $firstName,
     p.lastName = $lastName,
     p.dateOfBirth = $dateOfBirth,
     p.dateOfDeath = $dateOfDeath,
-    p.note = $note
-    p.gender = $gender
-    p.location = $location
+    p.note = $note,
+    p.gender = $gender,
+    p.location = $location,
     p.imageUrl = $imageUrl
 RETURN p

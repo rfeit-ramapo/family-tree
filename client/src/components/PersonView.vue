@@ -4,8 +4,11 @@
       h2(v-if="firstName || middleName || lastName") {{firstName ?? ""}} {{ middleName ?? ""}} {{lastName ?? ""}}
       h2(v-else) Unnamed Person
     .person-image
-      img(v-if="personDetails.person.imageUrl" :src="personDetails.person.imageUrl" alt="Person Image")
-      img(v-else src="@/assets/default_person.svg" alt="Default Person Image" height="200px")
+      ImageUpload(
+        :initial-image="imageUrl"
+        :person-id="personDetails.person.id"
+        @update:image="updateImage"
+      )
     .person-data
       h3 Data
       .data-row
@@ -109,9 +112,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, onMounted, ref, type Ref } from "vue";
+import { computed, defineComponent, onMounted, ref, type Ref } from "vue";
 import { type PersonDetails, type TreeMember } from "@/helpers/treeToNodes";
 import GenderAutoSuggest from "./GenderAutoSuggest.vue";
+import ImageUpload from "./ImageUpload.vue";
 
 export default defineComponent({
   name: "PersonView",
@@ -126,6 +130,7 @@ export default defineComponent({
   },
   components: {
     GenderAutoSuggest,
+    ImageUpload,
   },
   setup(props) {
     const personDetails: Ref<PersonDetails | null> = ref(null);
@@ -176,6 +181,11 @@ export default defineComponent({
           userId && personDetails.value
             ? personDetails.value.editors.includes(userId)
             : false;
+
+        console.log(
+          "Person data",
+          JSON.stringify(personDetails.value, null, 2)
+        );
       } catch (error) {
         console.error("Error fetching person data", error);
         errorMessage.value =
@@ -240,6 +250,12 @@ export default defineComponent({
       }
     };
 
+    const updateImage = (newImageUrl: string) => {
+      if (personDetails.value) {
+        personDetails.value.person.imageUrl = newImageUrl;
+      }
+    };
+
     const textFocus = (event: FocusEvent) => {
       const target = event.target as HTMLElement;
       target.innerText = "";
@@ -293,19 +309,37 @@ export default defineComponent({
       }
     };
 
+    const firstName = computed(() => personDetails.value?.person.firstName);
+    const middleName = computed(() => personDetails.value?.person.middleName);
+    const lastName = computed(() => personDetails.value?.person.lastName);
+    const gender = computed(() => personDetails.value?.person.gender);
+    const location = computed(() => personDetails.value?.person.location);
+    const dateOfBirth = computed(() => personDetails.value?.person.dateOfBirth);
+    const dateOfDeath = computed(() => personDetails.value?.person.dateOfDeath);
+    const imageUrl = computed(() => personDetails.value?.person.imageUrl);
+
+    const fullName = computed(() => {
+      if (firstName.value || middleName.value || lastName.value) {
+        return `${firstName.value ?? ""} ${middleName.value ?? ""} ${lastName.value ?? ""}`;
+      }
+      return `Unnamed Person`;
+    });
+
     onMounted(async () => {
       await fetchPerson();
     });
 
     return {
       personDetails,
-      firstName: personDetails.value?.person.firstName,
-      middleName: personDetails.value?.person.middleName,
-      lastName: personDetails.value?.person.lastName,
-      gender: personDetails.value?.person.gender,
-      location: personDetails.value?.person.location,
-      dateOfBirth: personDetails.value?.person.dateOfBirth,
-      dateOfDeath: personDetails.value?.person.dateOfDeath,
+      firstName,
+      middleName,
+      lastName,
+      gender,
+      location,
+      dateOfBirth,
+      dateOfDeath,
+      imageUrl,
+      fullName,
       textFocus,
       textBlur,
       enterField,
@@ -318,6 +352,7 @@ export default defineComponent({
       formatDate,
       updateDateOfBirth,
       updateDateOfDeath,
+      updateImage,
     };
   },
 });

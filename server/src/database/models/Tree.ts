@@ -437,19 +437,19 @@ export class DBTree extends DBManager {
       await session.executeWrite((t) =>
         t.run(query, {
           id: person.id,
-          firstName: person.firstName,
-          middleName: person.middleName,
-          lastName: person.lastName,
+          firstName: person.firstName ?? null,
+          middleName: person.middleName ?? null,
+          lastName: person.lastName ?? null,
           dateOfBirth: person.dateOfBirth
             ? DateTime.fromStandardDate(person.dateOfBirth)
-            : undefined,
+            : null,
           dateOfDeath: person.dateOfDeath
             ? DateTime.fromStandardDate(person.dateOfDeath)
-            : undefined,
-          note: person.note,
-          gender: person.gender,
-          location: person.location,
-          imageUrl: person.imageUrl,
+            : null,
+          note: person.note ?? null,
+          gender: person.gender ?? null,
+          location: person.location ?? null,
+          imageUrl: person.imageUrl ?? null,
         })
       );
     } finally {
@@ -614,9 +614,8 @@ export class DBTree extends DBManager {
     );
     const query = fs.readFileSync(queryPath, "utf-8");
 
-    let result;
     try {
-      result = await session.executeRead((t) =>
+      await session.executeRead((t) =>
         t.run(query, {
           id: originId,
         })
