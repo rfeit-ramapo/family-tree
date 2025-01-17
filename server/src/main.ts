@@ -5,7 +5,7 @@ import * as dotenv from "dotenv";
 import express from "express";
 import { OAuth2Client } from "google-auth-library";
 import DBManager from "./database/DBManager";
-import { DBTree } from "./database/models/Tree";
+import { DBTree, PersonDetails } from "./database/models/Tree";
 
 dotenv.config();
 const app = express();
@@ -501,7 +501,6 @@ app.post(
 
 app.post("/api/remove-image/:personId", async (req, res): Promise<void> => {
   const { personId } = req.params;
-  console.log("Removing image for person:", personId);
 
   // Verify authentication
   const authHeader = req.headers.authorization;
@@ -593,6 +592,118 @@ app.use(
 
 // Serve static files from the 'public' directory
 app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
+
+app.put("/api/person/:personId", async (req, res) => {
+  const personDetails = req.body as PersonDetails;
+  const person = personDetails.person;
+
+  // Verify authentication
+  const authHeader = req.headers.authorization;
+  let userId: string | null = null;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  const token = authHeader?.split(" ")[1];
+
+  try {
+    const ticket = await authClient.verifyIdToken({
+      idToken: token!,
+      audience: process.env.AUTH_CLIENT as string,
+    });
+    const payload = ticket.getPayload();
+    userId = payload?.sub || null;
+  } catch (error) {
+    console.error("Token verification failed:", error);
+    res.status(401).json({ message: "Invalid token" });
+    return;
+  }
+
+  if (!userId) {
+    res.status(401).json({ message: "User not authenticated" });
+    return;
+  }
+
+  try {
+    const oldPersonData = await DBTree.getPersonDetails(person.id);
+
+    // If the user is not an editor for this person, return 403
+    if (
+      oldPersonData.creator !== userId &&
+      oldPersonData.editors.indexOf(userId) === -1
+    ) {
+      res.status(403).json({ message: "Unauthorized: Not an editor" });
+      return;
+    }
+
+    // Update the person record
+    await DBTree.updatePerson(person);
+  } catch (error) {
+    console.error("Error updating person record:", error);
+    res.status(500).json({ message: "Failed to update person" });
+    return;
+  }
+
+  res.status(200).json({ message: "Person updated" });
+});
+
+app.put("/api/person/:personId/root", async (req, res) => {
+  const { personId } = req.params;
+  const { isRoot } = req.body;
+
+  // Verify authentication
+  const authHeader = req.headers.authorization;
+  let userId: string | null = null;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    res.status(401).json({ message: "Unauthorized" });
+    return;
+  }
+
+  const token = authHeader?.split(" ")[1];
+
+  try {
+    const ticket = await authClient.verifyIdToken({
+      idToken: token!,
+      audience: process.env.AUTH_CLIENT as string,
+    });
+    const payload = ticket.getPayload();
+    userId = payload?.sub || null;
+  } catch (error) {
+    console.error("Token verification failed:", error);
+    res.status(401).json({ message: "Invalid token" });
+    return;
+  }
+
+  if (!userId) {
+    res.status(401).json({ message: "User not authenticated" });
+    return;
+  }
+
+  try {
+    const personData = await DBTree.getPersonDetails(personId);
+
+    // If the user is not an editor for this person, return 403
+    if (
+      personData.creator !== userId &&
+      personData.editors.indexOf(userId) === -1
+    ) {
+      res.status(403).json({ message: "Unauthorized: Not an editor" });
+      return;
+    }
+
+    // Update the person record
+    await DBTree.switchRoot(personId, isRoot);
+  } catch (error) {
+    console.error("Error updating person record:", error);
+    res.status(500).json({ message: "Failed to update person" });
+    return;
+  }
+
+  res.status(200).json({ message: "Root updated" });
+});
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

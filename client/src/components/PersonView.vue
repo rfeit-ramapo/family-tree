@@ -1,5 +1,8 @@
 <template lang="pug">
   .person-container(v-if="personDetails")
+    .success-message(v-if="showSuccessMessage")
+      span Success! Entered user data has been saved.
+    .error-message(v-if="errorMessage") {{ errorMessage }}
     .person-header 
       h2(v-if="firstName || middleName || lastName") {{firstName ?? ""}} {{ middleName ?? ""}} {{lastName ?? ""}}
       h2(v-else) Unnamed Person
@@ -8,6 +11,7 @@
         :initial-image="imageUrl"
         :person-id="personDetails.person.id"
         @update:image="updateImage"
+        @error="errorMessage = 'There was an error uploading the image. Please try again later.'"
       )
     .person-data
       h3 Data
@@ -85,12 +89,25 @@
           :value="formatDate(dateOfDeath)"
           @input="updateDateOfDeath"
         )
-
+    .edit-buttons(v-if="hasEditPerms")
+      button.cancel-button(
+        @click="fetchPerson"
+      ) Cancel
+      button.save-button(
+        @click="savePerson"
+      ) Save
     .connections
       h3 Connections
       .connection-row
-        span.connection-label Relation to Root: 
-        span.connection-value {{ rootId ? personDetails.relationPath : "no root set" }}
+        span.connection-label Relation to Root:
+        .root-star(
+          :class="{ active: isRoot }"
+          @click="toggleRootStatus"
+          @mouseover="hoverRoot = true"
+          @mouseleave="hoverRoot = false"
+        )
+          i(:class="`fa${isRoot ? 's' : 'r'} fa-star`")
+        span.connection-value {{ personDetails.relationPath ?? "unrelated" }}
       .connection-row(v-if="personDetails.parents.length > 0")
         span.connection-label Partners: 
         ul.connection-list
@@ -114,6 +131,7 @@
 <script lang="ts">
 import { computed, defineComponent, onMounted, ref, type Ref } from "vue";
 import { type PersonDetails, type TreeMember } from "@/helpers/treeToNodes";
+
 import GenderAutoSuggest from "./GenderAutoSuggest.vue";
 import ImageUpload from "./ImageUpload.vue";
 
@@ -123,9 +141,6 @@ export default defineComponent({
     personId: {
       type: String,
       required: true,
-    },
-    rootId: {
-      type: String,
     },
   },
   components: {
@@ -138,6 +153,7 @@ export default defineComponent({
     const errorMessage: Ref<string | null> = ref(null);
     const genderSuggestions = ref<string[]>([]);
     const activeGenderIndex = ref(-1);
+    const showSuccessMessage = ref(false);
 
     const typeableFields: readonly string[] = [
       "firstName",
@@ -159,12 +175,9 @@ export default defineComponent({
         }
 
         // Fetch person data from server
-        const response = await fetch(
-          `/api/person/${props.personId}?rootId=${props.rootId}`,
-          {
-            headers,
-          }
-        );
+        const response = await fetch(`/api/person/${props.personId}`, {
+          headers,
+        });
 
         if (!response.ok) {
           if (response.status === 403) {
@@ -176,11 +189,15 @@ export default defineComponent({
 
         personDetails.value = await response.json();
         const userId = localStorage.getItem("userId");
+        console.log("userId", userId);
 
         hasEditPerms.value =
           userId && personDetails.value
-            ? personDetails.value.editors.includes(userId)
+            ? personDetails.value.editors.includes(userId) ||
+              personDetails.value.creator === userId
             : false;
+
+        console.log("hasEditPerms", hasEditPerms.value);
 
         console.log(
           "Person data",
@@ -256,22 +273,69 @@ export default defineComponent({
       }
     };
 
-    const textFocus = (event: FocusEvent) => {
-      const target = event.target as HTMLElement;
-      target.innerText = "";
-      target.classList.remove("unset");
+    const toggleRootStatus = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const isRoot = !personDetails.value?.isRoot;
+
+        const response = await fetch(`/api/person/${props.personId}/root`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({ isRoot }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to update root status");
+        } else {
+          personDetails.value!.isRoot = isRoot;
+          fetchPerson();
+        }
+      } catch (error) {
+        console.error("Error updating root status", error);
+        errorMessage.value =
+          "There was an error updating the root status. Please try again later.";
+      }
     };
 
-    const textBlur = (event: FocusEvent) => {
+    const textFocus = (event: FocusEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.classList.contains("unset")) {
+        target.innerText = "";
+        target.classList.remove("unset");
+      } else {
+        // Highlight inner text
+        const range = document.createRange();
+        const selection = window.getSelection();
+
+        if (selection && target.firstChild) {
+          range.selectNodeContents(target);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+    };
+
+    const textBlur = (event: Event) => {
       genderSuggestions.value = [];
       const target = event.target as HTMLElement;
-      if (target.innerText && personDetails.value) {
-        const key = target.id as (typeof typeableFields)[number];
+      const key = target.id as (typeof typeableFields)[number];
+
+      if (target.innerText) {
         if (typeableFields.includes(key)) {
-          (personDetails.value.person[key as keyof TreeMember] as string) =
+          (personDetails.value!.person[key as keyof TreeMember] as string) =
             target.innerText;
         }
       } else {
+        (personDetails.value!.person[key as keyof TreeMember] as unknown) =
+          undefined;
         target.innerText = "Unset";
         target.classList.add("unset");
       }
@@ -283,9 +347,7 @@ export default defineComponent({
     };
 
     const enterField = (event: KeyboardEvent) => {
-      // Unfocus the field
-      const target = event.target as HTMLElement;
-      target.blur();
+      textBlur(event);
     };
 
     const tabField = (event: KeyboardEvent) => {
@@ -309,6 +371,44 @@ export default defineComponent({
       }
     };
 
+    const savePerson = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        console.log("Saving person data", JSON.stringify(personDetails.value));
+        const response = await fetch(`/api/person/${props.personId}`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(personDetails.value),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to save person");
+        }
+
+        await fetchPerson();
+
+        // Show success message
+        showSuccessMessage.value = true;
+
+        // Hide the message after a few seconds
+        setTimeout(() => {
+          showSuccessMessage.value = false;
+        }, 3000); // 3 seconds
+      } catch (error) {
+        console.error("Error saving person data", error);
+        errorMessage.value =
+          "There was an error saving the person data. Please try again later.";
+      }
+    };
+
     const firstName = computed(() => personDetails.value?.person.firstName);
     const middleName = computed(() => personDetails.value?.person.middleName);
     const lastName = computed(() => personDetails.value?.person.lastName);
@@ -317,6 +417,7 @@ export default defineComponent({
     const dateOfBirth = computed(() => personDetails.value?.person.dateOfBirth);
     const dateOfDeath = computed(() => personDetails.value?.person.dateOfDeath);
     const imageUrl = computed(() => personDetails.value?.person.imageUrl);
+    const isRoot = computed(() => personDetails.value?.isRoot);
 
     const fullName = computed(() => {
       if (firstName.value || middleName.value || lastName.value) {
@@ -330,6 +431,10 @@ export default defineComponent({
     });
 
     return {
+      fetchPerson,
+      savePerson,
+      hasEditPerms,
+      errorMessage,
       personDetails,
       firstName,
       middleName,
@@ -340,6 +445,8 @@ export default defineComponent({
       dateOfDeath,
       imageUrl,
       fullName,
+      isRoot,
+      toggleRootStatus,
       textFocus,
       textBlur,
       enterField,
@@ -353,6 +460,7 @@ export default defineComponent({
       updateDateOfBirth,
       updateDateOfDeath,
       updateImage,
+      showSuccessMessage,
     };
   },
 });
@@ -516,4 +624,45 @@ export default defineComponent({
 .gender-suggestion-box li.active
   background-color #e9ecef
   font-weight bold
+
+.edit-buttons
+  display flex
+  justify-content space-evenly
+  margin-top 16px
+  button
+    min-width 125px
+    padding 8px 16px
+    border-radius 4px
+    margin-left 8px
+    cursor pointer
+    &.cancel-button
+      background-color #f8d7da
+      color #721c24
+      border 1px solid #721c24
+    &.save-button
+      background-color #d4edda
+      color #155724
+      border 1px solid #155724
+    &:hover
+      background-color #f8f9fa
+
+.success-message
+  background-color #d4edda // Light green background
+  color #155724 // Dark green text
+  border 1px solid #c3e6cb // Green border
+  padding 10px
+  margin 10px 0
+  border-radius 4px
+  text-align center
+
+.root-star
+  display inline-block
+  margin-right 5px
+  cursor pointer
+  color lightgray
+  transition color 0.3s ease
+  &.active
+    color yellow
+  &:hover
+    color darken(yellow, 15%)
 </style>

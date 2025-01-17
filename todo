@@ -1,6 +1,6 @@
 next steps:
-- add a right click dropdown menu to rename the tree
-- add a right click dropdown menu to delete the tree
+-- add a right click dropdown menu to rename the tree
+-- add a right click dropdown menu to delete the tree
 - add a sidebar to switch between owned and shared trees
 - do not allow renaming or deletion of shared trees
 - when a tree is clicked on, take the user to the tree page
@@ -27,3 +27,6 @@ next steps:
     - make focal point
 - top bar with name of tree and share options
 - also metadata: last modified, undo/redo, edit history, etc.
+
+- search and sort bar in the trees view
+- fix overflow of tree names in the trees view

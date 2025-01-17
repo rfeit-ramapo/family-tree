@@ -626,6 +626,34 @@ export class DBTree extends DBManager {
 
     return;
   }
+
+  static async switchRoot(personId: string, isRoot: boolean) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the cypher query file
+    const queryFile = isRoot ? "switch_root.cypher" : "remove_root.cypher";
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      queryFile
+    );
+    const query = fs.readFileSync(queryPath, "utf-8");
+
+    try {
+      await session.executeWrite((t) =>
+        t.run(query, {
+          id: personId,
+        })
+      );
+    } finally {
+      await session.close();
+    }
+
+    return;
+  }
 }
 
 export interface Tree {
@@ -679,7 +707,7 @@ interface RawPerson {
   editors: string[];
 }
 
-interface PersonDetails {
+export interface PersonDetails {
   person: TreeMember;
   relationPath: string;
   parents: TreeMember[];

@@ -57,11 +57,12 @@ export default defineComponent({
         const res = await axiosInstance.post("/google-login", { token });
         user.email = res.data.email;
         user.picture = res.data.picture;
-        console.log(user);
+        console.log(JSON.stringify(res.data));
         isLoggedIn.value = true;
 
         // Save user information in local storage
         localStorage.setItem("user", JSON.stringify(user));
+        localStorage.setItem("userId", res.data.userId);
         localStorage.setItem("token", token);
 
         // Redirect to the user's trees view

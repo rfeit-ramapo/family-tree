@@ -3,7 +3,7 @@ MATCH (t)<-[:OWNS_TREE]-(u:User)
 OPTIONAL MATCH (viewer:User)-[:CAN_VIEW]->(t)
 OPTIONAL MATCH (editor:User)-[:CAN_EDIT]->(t)
 
-OPTIONAL MATCH (r:Person {id: $rootId})
+OPTIONAL MATCH (r:Person)<-[:ROOT]-(t)
 WITH p, r, (p = r) AS isRoot, t, u, viewer, editor
 OPTIONAL MATCH relationPath=shortestPath((r)-[:PARENT_OF|PARTNER_OF*1..]-(p))
 WHERE NOT isRoot

@@ -61,7 +61,7 @@ export default defineComponent({
       required: true,
     },
   },
-  emits: ["update:image"],
+  emits: ["update:image", "error"],
   setup(props, { emit }) {
     const showOverlay = ref(false);
     const showModal = ref(false);
@@ -117,6 +117,7 @@ export default defineComponent({
         } catch (error) {
           console.error("Error uploading image:", error);
           // Handle error (show message to user)
+          emit("error");
         }
       }
 
@@ -146,6 +147,7 @@ export default defineComponent({
       } catch (error) {
         console.error("Error removing image:", error);
         // Handle error (show message to user)
+        emit("error");
       }
 
       closeModal();
