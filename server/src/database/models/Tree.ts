@@ -12,6 +12,7 @@ export class DBTree extends DBManager {
     rawTree.dateCreated = (
       rawTree.dateCreated as unknown as DateTime
     ).toStandardDate();
+
     if (rawTree.lastModified)
       rawTree.lastModified = (
         rawTree.lastModified as unknown as DateTime
@@ -91,6 +92,7 @@ export class DBTree extends DBManager {
       isRoot: rawPerson.isRoot,
       isPublic: rawPerson.isPublic,
       viewers: rawPerson.viewers,
+      editors: rawPerson.editors,
     };
   }
 
@@ -675,6 +677,7 @@ interface RawPerson {
   isPublic: boolean;
   creator: string;
   viewers: string[];
+  editors: string[];
 }
 
 interface PersonDetails {
@@ -688,4 +691,5 @@ interface PersonDetails {
   isPublic: boolean;
   creator: string;
   viewers: string[];
+  editors: string[];
 }

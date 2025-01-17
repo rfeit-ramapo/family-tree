@@ -282,7 +282,7 @@ app.get("/api/tree/:treeId", async (req, res) => {
 
 app.get("/api/person/:personId", async (req, res) => {
   const { personId } = req.params;
-  const { rootId } = req.body;
+  const { rootId } = req.query as { rootId: string };
 
   const authHeader = req.headers.authorization;
   let userId: string | null = null;

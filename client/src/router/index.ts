@@ -32,6 +32,9 @@ const routes = [
     path: "/dev-test",
     name: "DevTest",
     component: PersonView, // This is a test page
+    props: {
+      personId: "parent1id",
+    },
   },
 ];
 

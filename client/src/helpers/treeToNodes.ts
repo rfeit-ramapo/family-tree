@@ -32,13 +32,19 @@ export interface TreeMember {
   imageUrl?: string;
 }
 
-export type Person = TreeMember & {
-  relationToRoot: string;
+export interface PersonDetails {
+  person: TreeMember;
+  relationPath: string;
   parents: TreeMember[];
   currentPartner?: TreeMember;
   partners: TreeMember[];
   children: TreeMember[];
-};
+  isRoot: boolean;
+  isPublic: boolean;
+  creator: string;
+  viewers: string[];
+  editors: string[];
+}
 
 export interface TreeWithMembers {
   metadata: Tree;

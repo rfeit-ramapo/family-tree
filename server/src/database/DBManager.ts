@@ -19,6 +19,7 @@ export default class DBManager {
     result: QueryResult,
     formatter: (rec: RawT) => T
   ) {
+    console.log(result.records);
     const test = formatter(result.records[0].toObject());
     console.log(test);
     return test;
@@ -29,7 +30,7 @@ export default class DBManager {
     result: QueryResult,
     formatter: (rec: RawT) => T
   ) {
-    console.log(result.records);
+    console.log(result.records[2].toObject());
     const test = result.records.map((rec) => formatter(rec.toObject()));
     console.log(test);
     return test;
