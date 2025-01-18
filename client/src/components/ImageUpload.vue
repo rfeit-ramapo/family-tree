@@ -239,7 +239,7 @@ export default defineComponent({
   background-color white
   padding 24px
   border-radius 8px
-  min-width 300px
+  max-width 400px
 
   h3
     margin-top 0

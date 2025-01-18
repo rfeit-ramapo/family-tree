@@ -1,128 +1,130 @@
 <template lang="pug">
-  .person-container(v-if="personDetails")
-    .success-message(v-if="showSuccessMessage")
-      span Success! Entered user data has been saved.
-    .error-message(v-if="errorMessage") {{ errorMessage }}
-    .person-header 
-      h2(v-if="firstName || middleName || lastName") {{firstName ?? ""}} {{ middleName ?? ""}} {{lastName ?? ""}}
-      h2(v-else) Unnamed Person
-    .person-image
-      ImageUpload(
-        :initial-image="imageUrl"
-        :person-id="personDetails.person.id"
-        @update:image="updateImage"
-        @error="errorMessage = 'There was an error uploading the image. Please try again later.'"
-      )
-    .person-data
-      h3 Data
-      .data-row
-        span.data-label First Name: 
-        span.data-value#firstName(
-            :class="{unset: !firstName }"
-            :contentEditable="true"
-            @focus="textFocus"
-            @blur="textBlur"
-            @keydown.enter="enterField"
-            @keydown.tab="tabField"
-        ) {{ firstName ?? "Unset" }}
-      .data-row
-        span.data-label Middle Name: 
-        span.data-value#middleName(
-            :class="{unset: !middleName }"
-            :contentEditable="true"
-            @focus="textFocus"
-            @blur="textBlur"
-            @keydown.enter="enterField"
-            @keydown.tab="tabField"
-        ) {{ middleName ?? "Unset" }}
-      .data-row
-        span.data-label Last Name: 
-        span.data-value#lastName(
-            :class="{unset: !lastName }"
-            :contentEditable="true"
-            @focus="textFocus"
-            @blur="textBlur"
-            @keydown.enter="enterField"
-            @keydown.tab="tabField"
-        ) {{ lastName ?? "Unset" }}
-      .data-row
-        span.data-label Gender: 
-        span.data-value#gender(
-            :class="{unset: !gender }"
-            :contentEditable="true"
-            @focus="textFocus"
-            @blur="textBlur"
-            @input="updateGenderSuggestions"
-            @keydown.enter="enterGenderField"
-            @keydown.tab="tabField"
-        ) {{ gender ?? "Unset"}}
-        ul.gender-suggestion-box(
-            v-if="genderSuggestions.length > 0"
+  .overlay(@click.self="closeBox")
+    .person-container(v-if="personDetails")
+      button.close-button(@click="closeBox") x
+      .success-message(v-if="showSuccessMessage")
+        span Success! Entered user data has been saved.
+      .error-message(v-if="errorMessage") {{ errorMessage }}
+      .person-header 
+        h2(v-if="firstName || middleName || lastName") {{firstName ?? ""}} {{ middleName ?? ""}} {{lastName ?? ""}}
+        h2(v-else) Unnamed Person
+      .person-image
+        ImageUpload(
+          :initial-image="imageUrl"
+          :person-id="personDetails.person.id"
+          @update:image="updateImage"
+          @error="errorMessage = 'There was an error uploading the image. Please try again later.'"
         )
-          li(
-            v-for="suggestion, index in genderSuggestions"
-            :key="index"
-            :class="{ active: index === activeGenderIndex }"
-            @mousedown="selectGenderSuggestion(index)"
-          ) {{ suggestion }}
-      .data-row
-        span.data-label Location: 
-        span.data-value#location(
-            :class="{unset: !location }"
-            :contentEditable="true"
-            @focus="textFocus"
-            @blur="textBlur"
-            @keydown.enter="enterField"
-            @keydown.tab="tabField"
-        ) {{ location ?? "Unset" }}
-      .data-row
-        span.data-label Date of Birth: 
-        input.data-value#dateOfBirthInput(
-          type="date"
-          :value="formatDate(dateOfBirth)"
-          @input="updateDateOfBirth"
-        )
-      .data-row
-        span.data-label Date of Death: 
-        input.data-value#dateOfDeathInput(
-          type="date"
-          :value="formatDate(dateOfDeath)"
-          @input="updateDateOfDeath"
-        )
-    .edit-buttons(v-if="hasEditPerms")
-      button.cancel-button(
-        @click="fetchPerson"
-      ) Cancel
-      button.save-button(
-        @click="savePerson"
-      ) Save
-    .connections
-      h3 Connections
-      .connection-row
-        span.connection-label Relation to Root:
-        .root-star(
-          :class="{ active: isRoot }"
-          @click="toggleRootStatus"
-          @mouseover="hoverRoot = true"
-          @mouseleave="hoverRoot = false"
-        )
-          i(:class="`fa${isRoot ? 's' : 'r'} fa-star`")
-        span.connection-value {{ personDetails.relationPath ?? "unrelated" }}
-      .connection-row(v-if="personDetails.parents.length > 0")
-        span.connection-label Partners: 
-        ul.connection-list
-          li.connection-item(v-for="partner in personDetails.partners") {{ partner }}
-      .connection-row(v-if="personDetails.currentPartner")
-        span.connection-label Current Partner: 
-        span.connection-value {{ personDetails.currentPartner }}
-      .connection-row(v-if="personDetails.parents.length > 0")
-        span.connection-label Parents: 
-        ul.connection-list
-          li.connection-item(v-for="parent in personDetails.parents") {{ parent }}
-      .connection-row(v-if="personDetails.children.length > 0")
-        span.connection-label Children: 
-        ul.connection-list
-          li.connection-item(v-for="child in personDetails.children") {{ child }}
+      .person-data
+        h3 Data
+        .data-row
+          span.data-label First Name: 
+          span.data-value#firstName(
+              :class="{unset: !firstName }"
+              :contentEditable="true"
+              @focus="textFocus"
+              @blur="textBlur"
+              @keydown.enter="enterField"
+              @keydown.tab="tabField"
+          ) {{ firstName ?? "Unset" }}
+        .data-row
+          span.data-label Middle Name: 
+          span.data-value#middleName(
+              :class="{unset: !middleName }"
+              :contentEditable="true"
+              @focus="textFocus"
+              @blur="textBlur"
+              @keydown.enter="enterField"
+              @keydown.tab="tabField"
+          ) {{ middleName ?? "Unset" }}
+        .data-row
+          span.data-label Last Name: 
+          span.data-value#lastName(
+              :class="{unset: !lastName }"
+              :contentEditable="true"
+              @focus="textFocus"
+              @blur="textBlur"
+              @keydown.enter="enterField"
+              @keydown.tab="tabField"
+          ) {{ lastName ?? "Unset" }}
+        .data-row
+          span.data-label Gender: 
+          span.data-value#gender(
+              :class="{unset: !gender }"
+              :contentEditable="true"
+              @focus="textFocus"
+              @blur="textBlur"
+              @input="updateGenderSuggestions"
+              @keydown.enter="enterGenderField"
+              @keydown.tab="tabField"
+          ) {{ gender ?? "Unset"}}
+          ul.gender-suggestion-box(
+              v-if="genderSuggestions.length > 0"
+          )
+            li(
+              v-for="suggestion, index in genderSuggestions"
+              :key="index"
+              :class="{ active: index === activeGenderIndex }"
+              @mousedown="selectGenderSuggestion(index)"
+            ) {{ suggestion }}
+        .data-row
+          span.data-label Location: 
+          span.data-value#location(
+              :class="{unset: !location }"
+              :contentEditable="true"
+              @focus="textFocus"
+              @blur="textBlur"
+              @keydown.enter="enterField"
+              @keydown.tab="tabField"
+          ) {{ location ?? "Unset" }}
+        .data-row
+          span.data-label Date of Birth: 
+          input.data-value#dateOfBirthInput(
+            type="date"
+            :value="formatDate(dateOfBirth)"
+            @input="updateDateOfBirth"
+          )
+        .data-row
+          span.data-label Date of Death: 
+          input.data-value#dateOfDeathInput(
+            type="date"
+            :value="formatDate(dateOfDeath)"
+            @input="updateDateOfDeath"
+          )
+      .edit-buttons(v-if="hasEditPerms")
+        button.cancel-button(
+          @click="fetchPerson"
+        ) Cancel
+        button.save-button(
+          @click="savePerson"
+        ) Save
+      .connections
+        h3 Connections
+        .connection-row
+          span.connection-label Relation to Root:
+          .root-star(
+            :class="{ active: isRoot }"
+            @click="toggleRootStatus"
+            @mouseover="hoverRoot = true"
+            @mouseleave="hoverRoot = false"
+          )
+            i(:class="`fa${isRoot ? 's' : 'r'} fa-star`")
+          span.connection-value {{ personDetails.relationPath ?? "unrelated" }}
+        .connection-row(v-if="personDetails.parents.length > 0")
+          span.connection-label Partners: 
+          ul.connection-list
+            li.connection-item(v-for="partner in personDetails.partners") {{ partner }}
+        .connection-row(v-if="personDetails.currentPartner")
+          span.connection-label Current Partner: 
+          span.connection-value {{ personDetails.currentPartner }}
+        .connection-row(v-if="personDetails.parents.length > 0")
+          span.connection-label Parents: 
+          ul.connection-list
+            li.connection-item(v-for="parent in personDetails.parents") {{ parent }}
+        .connection-row(v-if="personDetails.children.length > 0")
+          span.connection-label Children: 
+          ul.connection-list
+            li.connection-item(v-for="child in personDetails.children") {{ child }}
 
 
       
@@ -147,7 +149,7 @@ export default defineComponent({
     GenderAutoSuggest,
     ImageUpload,
   },
-  setup(props) {
+  setup(props, { emit }) {
     const personDetails: Ref<PersonDetails | null> = ref(null);
     const hasEditPerms = ref(false);
     const errorMessage: Ref<string | null> = ref(null);
@@ -271,6 +273,7 @@ export default defineComponent({
       if (personDetails.value) {
         personDetails.value.person.imageUrl = newImageUrl;
       }
+      emit("changePicture", newImageUrl);
     };
 
     const toggleRootStatus = async () => {
@@ -402,11 +405,21 @@ export default defineComponent({
         setTimeout(() => {
           showSuccessMessage.value = false;
         }, 3000); // 3 seconds
+
+        emit("changeName", {
+          firstName: firstName.value,
+          middleName: middleName.value,
+          lastName: lastName.value,
+        });
       } catch (error) {
         console.error("Error saving person data", error);
         errorMessage.value =
           "There was an error saving the person data. Please try again later.";
       }
+    };
+
+    const closeBox = () => {
+      emit("close");
     };
 
     const firstName = computed(() => personDetails.value?.person.firstName);
@@ -431,6 +444,7 @@ export default defineComponent({
     });
 
     return {
+      closeBox,
       fetchPerson,
       savePerson,
       hasEditPerms,
@@ -468,12 +482,17 @@ export default defineComponent({
 
 <style lang="stylus" scoped>
 .person-container
+  position relative
+  max-width 90%
+  max-height 90%
+  overflow-y auto
   background-color #f8f9fa
-  padding 24px
+  padding 16px
   border-radius 8px
-  box-shadow 0 4px 8px rgba(0, 0, 0, 0.1)
+  box-shadow 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.06)
   margin-bottom 16px
   width 50%
+  z-index 1010
 
 .person-header
   text-align center
@@ -665,4 +684,32 @@ export default defineComponent({
     color yellow
   &:hover
     color darken(yellow, 15%)
+
+.overlay
+  position fixed
+  top 0
+  left 0
+  width 100vw
+  height 100vh
+  background rgba(0, 0, 0, 0.5)
+  z-index 1000
+  display flex
+  justify-content center
+  align-items center
+
+.close-button
+  position absolute
+  top 8px
+  right 8px
+  width 24px
+  height 24px
+  background transparent
+  border none
+  font-size 18px
+  font-weight bold
+  cursor pointer
+  color #333
+
+  &:hover
+    color #000
 </style>

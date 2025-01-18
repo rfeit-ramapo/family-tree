@@ -48,6 +48,7 @@ export interface PersonDetails {
 
 export interface TreeWithMembers {
   metadata: Tree;
+  focal?: TreeMember;
   root?: TreeMember;
   partner?: TreeMember;
   parent1?: TreeMember;
@@ -61,10 +62,10 @@ export interface TreeWithMembers {
 
 // Convert a tree into a list of nodes and relationships
 export const treeToNodes = (tree: TreeWithMembers) => {
-  if (!tree.root) return;
+  if (!tree.focal) return;
 
   // Convert all members to nodes
-  const focalPoint = memberToNode(tree.root, false);
+  const focalPoint = memberToNode(tree.focal, false);
   focalPoint.isFocalPoint = true;
   const partner = tree.partner ? memberToNode(tree.partner, true) : null;
   const parent1 = tree.parent1 ? memberToNode(tree.parent1, false) : null;
@@ -116,9 +117,9 @@ export const treeToNodes = (tree: TreeWithMembers) => {
       )
     );
   } else if (parent1) {
-    nodesToRelationship(parent1, focalPoint, RelationshipType.PARENT);
-  } else if (parent2) {
-    nodesToRelationship(parent2, focalPoint, RelationshipType.PARENT);
+    parent1.childRelationships.push(
+      nodesToRelationship(parent1, focalPoint, RelationshipType.PARENT)
+    );
   }
 
   // Parent(s) to siblings
@@ -136,12 +137,16 @@ export const treeToNodes = (tree: TreeWithMembers) => {
   }
   if (halfSiblingsP1.length) {
     halfSiblingsP1.forEach((sibling) =>
-      nodesToRelationship(parent1!, sibling, RelationshipType.PARENT)
+      parent1?.childRelationships.push(
+        nodesToRelationship(parent1!, sibling, RelationshipType.PARENT)
+      )
     );
   }
   if (halfSiblingsP2.length) {
     halfSiblingsP2.forEach((sibling) =>
-      nodesToRelationship(parent2!, sibling, RelationshipType.PARENT)
+      parent2?.childRelationships.push(
+        nodesToRelationship(parent2!, sibling, RelationshipType.PARENT)
+      )
     );
   }
 
@@ -160,15 +165,17 @@ export const treeToNodes = (tree: TreeWithMembers) => {
   }
   if (soloChildren.length) {
     soloChildren.forEach((child) =>
-      nodesToRelationship(focalPoint, child, RelationshipType.PARENT)
+      focalPoint.childRelationships.push(
+        nodesToRelationship(focalPoint, child, RelationshipType.PARENT)
+      )
     );
   }
 
   // Return parent1 as they are the root node (all other nodes can be drawn from here)
-  return parent1;
+  return parent1 || focalPoint;
 };
 
-const memberToNode = (member: TreeMember, isPartner: boolean) => {
+export const memberToNode = (member: TreeMember, isPartner: boolean) => {
   // Calculate the display name
   let displayName = "";
   if (member.firstName) displayName += member.firstName;

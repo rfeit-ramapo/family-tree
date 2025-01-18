@@ -7,6 +7,15 @@
     //.main-container
     //  p(v-if="!errorMessage") This is a sample page for the tree. Below is the JSON data.
     //  pre(v-if="!errorMessage") {{ JSON.stringify(tree, null, 2) }}
+
+    PersonView(
+      :personId="selectedItem.node.id"
+      v-if="showPersonModal" 
+      @close="showPersonModal = false"
+      @changePicture="changePicture"
+      @changeName="changeName"
+      @changeConnection="reloadTree"
+    )
   
     .canvas-container(v-if="!errorMessage")
       canvas#tree-canvas(
@@ -16,6 +25,7 @@
         @mouseleave="endDrag"
         @wheel="onZoom"
         @click="onCanvasClick"
+        @dblclick="onDoubleClick"
         @hover="onHover"
         @contextmenu.prevent="onRightClick($event)"
       )
@@ -25,10 +35,10 @@
         :contextMenuVisible="contextMenuVisible"
         :contextMenuPosition="contextMenuPosition"
         :editPerms="hasEditPerms"
-        @edit=""
+        @edit="editItem"
         @delete=""
         @connect=""
-        @add-node=""
+        @add-node="createNode"
         @view=""
       )
     SideBar(@toolChange="changeTool")
@@ -39,19 +49,27 @@ import { ref, defineComponent, type Ref, onMounted, onUnmounted } from "vue";
 import UpperBanner from "./UpperBanner.vue";
 import SideBar, { Tool } from "./SideBar.vue";
 import {
+  addMemberToDrawing,
   DrawableNode,
   DrawableObject,
   DrawableRelationship,
+  drawObjects,
   isPointInsideObject,
+  PartnerRelationship,
   redraw,
-  testDraw,
   updateSelectionBox,
   type Position,
 } from "@/helpers/canvasUtils";
-import type { TreeWithMembers } from "@/helpers/treeToNodes";
+import type {
+  PersonDetails,
+  Tree,
+  TreeMember,
+  TreeWithMembers,
+} from "@/helpers/treeToNodes";
 import eventBus from "@/helpers/eventBus";
 import { ContextMenuType } from "@/helpers/sharedTypes";
 import ContextMenu from "./ContextMenu.vue";
+import PersonView from "./PersonView.vue";
 
 export default defineComponent({
   name: "TreeView",
@@ -59,6 +77,7 @@ export default defineComponent({
     UpperBanner,
     SideBar,
     ContextMenu,
+    PersonView,
   },
   props: {
     treeId: {
@@ -81,12 +100,17 @@ export default defineComponent({
     const contextMenuVisible = ref(false);
     const contextMenuPosition: Ref<Position> = ref({ x: 0, y: 0 });
     const hasEditPerms = ref(false);
-
     const contextMenuType = ref<ContextMenuType>(ContextMenuType.CANVAS);
 
     const calcOriginalCoords = (event: MouseEvent): Position => {
-      const originalX = (event.offsetX - offsetX.value) / scale.value;
-      const originalY = (event.offsetY - offsetY.value) / scale.value;
+      const rect = canvas.value.getBoundingClientRect(); // Get canvas bounds
+      const canvasX = event.clientX - rect.left; // Mouse X relative to canvas
+      const canvasY = event.clientY - rect.top; // Mouse Y relative to canvas
+
+      // Adjust for scaling and offset
+      const originalX = (canvasX - offsetX.value) / scale.value;
+      const originalY = (canvasY - offsetY.value) / scale.value;
+
       return { x: originalX, y: originalY };
     };
 
@@ -159,7 +183,7 @@ export default defineComponent({
       }
     };
 
-    const fetchTreeMetadata = async () => {
+    const fetchTreeMetadata = async (focalId?: string) => {
       try {
         const token = localStorage.getItem("token");
         const headers: Record<string, string> = {
@@ -171,9 +195,13 @@ export default defineComponent({
         }
 
         // Fetch tree metadata using the treeId prop
-        const response = await fetch(`/api/tree/${props.treeId}`, {
-          headers,
-        });
+        const querySection = focalId ? `?focalId=${focalId}` : "";
+        const response = await fetch(
+          `/api/tree/${props.treeId}${querySection}`,
+          {
+            headers,
+          }
+        );
 
         if (!response.ok) {
           if (response.status === 403) {
@@ -261,7 +289,6 @@ export default defineComponent({
           canvas.value.style.cursor = "default";
           hoveredObject.value.toggleHover(false);
           hoveredObject.value = null;
-          console.log("reset hovered object");
         }
 
         // If this is a new object, update the hovered object and redraw canvas
@@ -269,12 +296,10 @@ export default defineComponent({
           newHoveredObject && newHoveredObject?.id !== hoveredObject.value?.id;
 
         if (isNewObject) {
-          console.log("new hovered object:", newHoveredObject);
           // Apply the hover property to the new drawing
           hoveredObject.value?.toggleHover(false);
           hoveredObject.value = newHoveredObject;
           hoveredObject.value.toggleHover(true);
-          console.log("hovered object after toggle:", hoveredObject.value);
         }
       }
     };
@@ -369,6 +394,16 @@ export default defineComponent({
       }
     };
 
+    const onDoubleClick = (event: MouseEvent) => {
+      if (selectedTool.value === Tool.SELECT) {
+        if (selectedItem.value instanceof DrawableNode) {
+          // Rehome the focal point
+          reloadTree(selectedItem.value.node.id);
+          selectedItem.value = null;
+        }
+      }
+    };
+
     const onRightClick = (event: MouseEvent) => {
       // Exit if not in select mode
       if (selectedTool.value !== Tool.SELECT) return;
@@ -381,7 +416,10 @@ export default defineComponent({
         ? ContextMenuType.CANVAS
         : selectedItem.value instanceof DrawableNode
           ? ContextMenuType.NODE
-          : ContextMenuType.RELATIONSHIP;
+          : (selectedItem.value as DrawableRelationship).relationship instanceof
+              PartnerRelationship
+            ? ContextMenuType.PARTNER_REL
+            : ContextMenuType.PARENT_REL;
 
       // Show custom context menu
 
@@ -400,7 +438,7 @@ export default defineComponent({
     const setupObjects = () => {
       const ctx = canvas.value.getContext("2d");
       if (!ctx) return;
-      if (tree.value) renderedObjects.value = testDraw(ctx, tree.value);
+      if (tree.value) renderedObjects.value = drawObjects(ctx, tree.value);
 
       // Listen for the `drawableUpdated` event
       eventBus.on("updatedDrawable", drawCanvas);
@@ -418,7 +456,7 @@ export default defineComponent({
       ctx.scale(scale.value, scale.value);
 
       if (tree.value && !renderedObjects.value)
-        renderedObjects.value = testDraw(ctx, tree.value);
+        renderedObjects.value = drawObjects(ctx, tree.value);
       else if (renderedObjects.value) {
         redraw(ctx, renderedObjects.value);
       }
@@ -464,6 +502,81 @@ export default defineComponent({
       contextMenuVisible.value = false;
     };
 
+    const createNode = async (event: MouseEvent) => {
+      if (!tree.value) return;
+
+      const token = localStorage.getItem("token");
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`/api/person`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          treeId: tree.value.metadata.id,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error("Failed to create node:", response.statusText);
+        return;
+      }
+
+      const newPerson = (await response.json()).person as TreeMember;
+      const currentCoords = calcOriginalCoords(event);
+      const canvasState = {
+        ctx: canvas.value.getContext("2d")!,
+        x: currentCoords.x,
+        y: currentCoords.y,
+      };
+
+      // Add the new node to the tree
+      const newDrawable = addMemberToDrawing(
+        newPerson,
+        renderedObjects.value,
+        canvasState
+      );
+      selectedItem.value = newDrawable;
+    };
+
+    const showPersonModal = ref(false);
+    const editItem = () => {
+      console.log("editing item");
+      // If the item is a node, show the Person View
+      if (selectedItem.value instanceof DrawableNode) {
+        showPersonModal.value = true;
+      }
+    };
+
+    const changePicture = (newImageUrl: string) => {
+      (selectedItem.value as DrawableNode).replaceImage(newImageUrl);
+    };
+
+    const changeName = ({
+      firstName,
+      middleName,
+      lastName,
+    }: {
+      firstName: string;
+      middleName: string;
+      lastName: string;
+    }) => {
+      (selectedItem.value as DrawableNode).replaceName(
+        `${firstName} ${middleName} ${lastName}`
+      );
+    };
+
+    const reloadTree = async (focalId?: string) => {
+      setupCanvas();
+      await fetchTreeMetadata(focalId);
+      setupObjects();
+    };
+
     onMounted(async () => {
       setupCanvas();
 
@@ -478,6 +591,13 @@ export default defineComponent({
     });
 
     return {
+      onDoubleClick,
+      reloadTree,
+      changePicture,
+      changeName,
+      editItem,
+      selectedItem,
+      showPersonModal,
       tree,
       errorMessage,
       startDrag,
@@ -489,6 +609,7 @@ export default defineComponent({
       onCanvasClick,
       changeTool,
       onHover,
+      createNode,
       selectedTool,
       Tool,
       onRightClick,

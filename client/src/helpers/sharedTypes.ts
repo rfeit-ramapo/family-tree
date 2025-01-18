@@ -1,7 +1,8 @@
 export enum ContextMenuType {
   NODE,
   TREE,
-  RELATIONSHIP,
+  PARTNER_REL,
+  PARENT_REL,
   CANVAS,
 }
 

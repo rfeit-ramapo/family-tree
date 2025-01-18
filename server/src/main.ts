@@ -1,25 +1,20 @@
-// server/src/main.ts
-
 import cors from "cors";
 import * as dotenv from "dotenv";
 import express from "express";
 import { OAuth2Client } from "google-auth-library";
 import DBManager from "./database/DBManager";
-import { DBTree, PersonDetails } from "./database/models/Tree";
+import { DBTree, PersonDetails, TreeMember } from "./database/models/Tree";
 
+// Set up environment and initialize the app
 dotenv.config();
 const app = express();
 const authClient = new OAuth2Client(process.env.AUTH_CLIENT || "my_client_id");
-
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 const PORT = process.env.PORT || 3001;
 
-app.get("/api", (_req, res) => {
-  res.status(200).json({ message: "Hello from the server!" });
-});
-
+// Google OAuth login endpoint
 app.post("/api/google-login", async (req, res) => {
   const { token } = req.body;
 
@@ -29,12 +24,10 @@ app.post("/api/google-login", async (req, res) => {
       audience: process.env.AUTH_CLIENT as string,
     });
     const payload = ticket.getPayload();
-    console.log(payload);
     const userId = payload?.sub;
     const email = payload?.email;
     const picture = payload?.picture;
 
-    // You can now authenticate the user in your database
     res
       .status(200)
       .json({ message: "User authenticated", userId, email, picture });
@@ -43,82 +36,39 @@ app.post("/api/google-login", async (req, res) => {
   }
 });
 
+// Get all trees for the authenticated user
 app.get("/api/trees", async (req, res) => {
-  const authHeader = req.headers.authorization;
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req;
+  res = authResult.res;
+  const userId = authResult.userId;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({
-      message: "Unauthorized: Missing or malformed Authorization header",
-    });
-    return;
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  if (!token) {
-    res.status(401).json({ message: "Unauthorized: Missing token" });
-    return;
-  }
-
+  if (!userId) return;
   try {
-    // Verify the token
-    const ticket = await authClient.verifyIdToken({
-      idToken: token,
-      audience: process.env.AUTH_CLIENT as string,
-    });
-    const payload = ticket.getPayload();
-    const userId = payload!.sub; // User's unique Google ID
-
-    if (!userId) {
-      res.status(401).json({ message: "Unauthorized: Invalid token" });
-      return;
-    }
-
     // Fetch trees for the user from the database
     const trees = await DBTree.getCreatorTrees(userId);
     res.status(200).json(trees);
     return;
   } catch (error) {
-    console.error("Error verifying token or fetching trees:", error);
+    console.error("Error fetching trees from database:", error);
     res.status(500).json({ message: "Failed to fetch trees" });
     return;
   }
 });
 
+// Create a new tree for the authenticated user
 app.post("/api/trees/create", async (req, res) => {
-  const authHeader = req.headers.authorization;
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req;
+  res = authResult.res;
+  const userId = authResult.userId;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({
-      message: "Unauthorized: Missing or malformed Authorization header",
-    });
-    return;
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  if (!token) {
-    res.status(401).json({ message: "Unauthorized: Missing token" });
-    return;
-  }
-
+  if (!userId) return;
   try {
-    // Verify the token
-    const ticket = await authClient.verifyIdToken({
-      idToken: token,
-      audience: process.env.AUTH_CLIENT as string,
-    });
-    const payload = ticket.getPayload();
-    const userId = payload!.sub; // User's unique Google ID
-
-    if (!userId) {
-      res.status(401).json({ message: "Unauthorized: Invalid token" });
-      return;
-    }
-
     // Get the tree name from the request body
     const { name } = req.body;
 
+    // Validate the tree name
     if (!name || name.trim() === "") {
       res.status(400).json({ message: "Tree name cannot be empty" });
       return;
@@ -131,52 +81,30 @@ app.post("/api/trees/create", async (req, res) => {
     res.status(201).json(newTree);
     return;
   } catch (error) {
-    console.error("Error verifying token or creating tree:", error);
+    console.error("Error creating tree:", error);
     res.status(500).json({ message: "Failed to create tree" });
     return;
   }
 });
 
 app.post("/api/trees/rename", async (req, res) => {
-  const authHeader = req.headers.authorization;
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req;
+  res = authResult.res;
+  const userId = authResult.userId;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({
-      message: "Unauthorized: Missing or malformed Authorization header",
-    });
-    return;
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  if (!token) {
-    res.status(401).json({ message: "Unauthorized: Missing token" });
-    return;
-  }
-
+  if (!userId) return;
   try {
-    // Verify the token
-    const ticket = await authClient.verifyIdToken({
-      idToken: token,
-      audience: process.env.AUTH_CLIENT as string,
-    });
-    const payload = ticket.getPayload();
-    const userId = payload!.sub; // User's unique Google ID
-
-    if (!userId) {
-      res.status(401).json({ message: "Unauthorized: Invalid token" });
-      return;
-    }
-
     // Get the tree name from the request body
     const { name, treeId } = req.body;
 
+    // Validate the tree name
     if (!name || name.trim() === "") {
       res.status(400).json({ message: "Tree name cannot be empty" });
       return;
     }
 
-    // Create the tree in the database
+    // Rename the tree in the database
     const newTree = await DBTree.renameTree(name, treeId);
 
     // Return the newly created tree
@@ -189,41 +117,19 @@ app.post("/api/trees/rename", async (req, res) => {
   }
 });
 
+// Delete a tree for the authenticated user
 app.post("/api/trees/delete", async (req, res) => {
-  const authHeader = req.headers.authorization;
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req;
+  res = authResult.res;
+  const userId = authResult.userId;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({
-      message: "Unauthorized: Missing or malformed Authorization header",
-    });
-    return;
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  if (!token) {
-    res.status(401).json({ message: "Unauthorized: Missing token" });
-    return;
-  }
-
+  if (!userId) return;
   try {
-    // Verify the token
-    const ticket = await authClient.verifyIdToken({
-      idToken: token,
-      audience: process.env.AUTH_CLIENT as string,
-    });
-    const payload = ticket.getPayload();
-    const userId = payload!.sub; // User's unique Google ID
-
-    if (!userId) {
-      res.status(401).json({ message: "Unauthorized: Invalid token" });
-      return;
-    }
-
-    // Get the tree name from the request body
+    // Get the tree id from the request body
     const { treeId } = req.body;
 
-    // Create the tree in the database
+    // Delete the tree from the database
     await DBTree.deleteTree(treeId);
     res.status(201).json({ message: "Tree deleted" });
     return;
@@ -234,33 +140,21 @@ app.post("/api/trees/delete", async (req, res) => {
   }
 });
 
+// Fetch a tree by id if the user is authorized to view it
 app.get("/api/tree/:treeId", async (req, res) => {
+  const authResult = await authorizeOptionalRequest(req, res);
+  req = authResult.req as Request<{ treeId: string }>;
+  res = authResult.res;
+  const userId = authResult.userId;
+
   const { treeId } = req.params;
-  const authHeader = req.headers.authorization;
-
-  let userId: string | null = null;
-
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const token = authHeader.split(" ")[1];
-
-    // Verify the token
-    try {
-      const ticket = await authClient.verifyIdToken({
-        idToken: token,
-        audience: process.env.AUTH_CLIENT as string,
-      });
-      const payload = ticket.getPayload();
-      userId = payload?.sub || null; // User's unique Google ID
-    } catch (error) {
-      console.error("Token verification failed:", error);
-    }
-  }
-
+  const { focalId } = req.query as { focalId: string | undefined };
   let fullTree;
   let metadata;
+
   try {
     // Fetch the tree from the database
-    fullTree = await DBTree.getTree(treeId);
+    fullTree = await DBTree.getTree(treeId, focalId);
     metadata = fullTree.metadata;
   } catch (error) {
     console.error("Error fetching tree:", error);
@@ -281,29 +175,15 @@ app.get("/api/tree/:treeId", async (req, res) => {
 });
 
 app.get("/api/person/:personId", async (req, res) => {
+  const authResult = await authorizeOptionalRequest(req, res);
+  req = authResult.req as Request<{ personId: string }>;
+  res = authResult.res;
+  const userId = authResult.userId;
+
   const { personId } = req.params;
   const { rootId } = req.query as { rootId: string };
-
-  const authHeader = req.headers.authorization;
-  let userId: string | null = null;
-
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const token = authHeader.split(" ")[1];
-
-    // Verify the token
-    try {
-      const ticket = await authClient.verifyIdToken({
-        idToken: token,
-        audience: process.env.AUTH_CLIENT as string,
-      });
-      const payload = ticket.getPayload();
-      userId = payload?.sub || null; // User's unique Google ID
-    } catch (error) {
-      console.error("Token verification failed:", error);
-    }
-  }
-
   let personData;
+
   try {
     personData = await DBTree.getPersonDetails(personId, rootId);
   } catch (error) {
@@ -403,43 +283,21 @@ app.post(
   upload.single("image"),
   async (req, res): Promise<void> => {
     if (!req.file) {
+      console.error("No file uploaded");
       res.status(400).json({ message: "No file uploaded" });
       return;
     }
 
     // Verify authentication
-    const authHeader = req.headers.authorization;
-    let userId: string | null = null;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      res.status(401).json({ message: "Unauthorized" });
-      return;
-    }
-
-    const token = authHeader?.split(" ")[1];
-
-    try {
-      const ticket = await authClient.verifyIdToken({
-        idToken: token!,
-        audience: process.env.AUTH_CLIENT as string,
-      });
-      const payload = ticket.getPayload();
-      userId = payload?.sub || null;
-    } catch (error) {
-      console.error("Token verification failed:", error);
-      res.status(401).json({ message: "Invalid token" });
-      return;
-    }
-
-    if (!userId) {
-      res.status(401).json({ message: "User not authenticated" });
-      return;
-    }
+    const authResult = await authorizeRequestWithUser(req, res);
+    req = authResult.req;
+    res = authResult.res;
+    const userId = authResult.userId;
+    if (!userId) return;
 
     try {
       // Get current image URL if updating an existing person
       let oldImageUrl: string | null = null;
-      console.log("Request body:", req.body);
       const personData = await DBTree.getPersonDetails(req.body.personId);
 
       // If the user is not an editor for this person, return 403
@@ -454,37 +312,29 @@ app.post(
       const person = personData.person;
       oldImageUrl = person.imageUrl || null;
 
-      // Generate unique filename
-      if (!req.file) {
-        res.status(400).json({ message: "No file uploaded" });
-        return;
-      }
-      const fileExtension = path.extname(req.file.originalname);
+      const fileExtension = path.extname(req.file!.originalname);
       const fileName = `${userId}_${uuidv4()}${fileExtension}`;
 
       // Save the new file
-      await storageService.saveFile(req.file, fileName);
+      await storageService.saveFile(req.file!, fileName);
       const publicUrl = storageService.getPublicUrl(fileName);
       person.imageUrl = publicUrl;
 
-      // Update person record if needed
-      if (req.body.personId) {
-        try {
-          console.log("Updating person to:", person);
-          await DBTree.updatePerson(person);
+      // Update person record
+      try {
+        await DBTree.updatePerson(person);
+      } catch (error) {
+        console.error("Error updating person record:", error);
+        res.status(500).json({ message: "Failed to update person" });
 
-          // Delete old image if it exists
-          if (oldImageUrl) {
-            await storageService.deleteFile(path.basename(oldImageUrl));
-          }
-        } catch (error) {
-          console.error("Error updating person record:", error);
-          res.status(500).json({ message: "Failed to update person" });
+        // Delete the new image since the update failed
+        await storageService.deleteFile(publicUrl);
+        return;
+      }
 
-          // Delete the new image since the update failed
-          await storageService.deleteFile(publicUrl);
-          return;
-        }
+      // Delete old image if it exists
+      if (oldImageUrl) {
+        await storageService.deleteFile(path.basename(oldImageUrl));
       }
 
       res.status(200).json({
@@ -500,40 +350,17 @@ app.post(
 );
 
 app.post("/api/remove-image/:personId", async (req, res): Promise<void> => {
+  // Verify authentication
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req as Request<{ personId: string }>;
+  res = authResult.res;
+  const userId = authResult.userId;
+  if (!userId) return;
+
   const { personId } = req.params;
 
-  // Verify authentication
-  const authHeader = req.headers.authorization;
-  let userId: string | null = null;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
-
-  const token = authHeader?.split(" ")[1];
-
   try {
-    const ticket = await authClient.verifyIdToken({
-      idToken: token!,
-      audience: process.env.AUTH_CLIENT as string,
-    });
-    const payload = ticket.getPayload();
-    userId = payload?.sub || null;
-  } catch (error) {
-    console.error("Token verification failed:", error);
-    res.status(401).json({ message: "Invalid token" });
-    return;
-  }
-
-  if (!userId) {
-    res.status(401).json({ message: "User not authenticated" });
-    return;
-  }
-
-  try {
-    // Get current image URL if updating an existing person
-    let oldImageUrl: string | null = null;
+    // Get the person information
     const personData = await DBTree.getPersonDetails(personId);
 
     // If the user is not an editor for this person, return 403
@@ -546,25 +373,25 @@ app.post("/api/remove-image/:personId", async (req, res): Promise<void> => {
     }
 
     const person = personData.person;
-    oldImageUrl = person.imageUrl || null;
+    const currentImageUrl = person.imageUrl || null;
     person.imageUrl = undefined;
 
     // Update person record
     try {
       await DBTree.updatePerson(person);
-
-      // Delete old image if it exists
-      if (oldImageUrl) {
-        await storageService.deleteFile(path.basename(oldImageUrl));
-      }
     } catch (error) {
       console.error("Error updating person record:", error);
       res.status(500).json({ message: "Failed to update person" });
       return;
     }
 
+    // Delete old image if it exists in storage
+    if (currentImageUrl && currentImageUrl.startsWith("/uploads/")) {
+      await storageService.deleteFile(path.basename(currentImageUrl));
+    }
+
     res.status(200).json({
-      message: "Upload successful",
+      message: "Image removal successful",
     });
   } catch (error) {
     console.error("Error in removal process:", error);
@@ -575,6 +402,10 @@ app.post("/api/remove-image/:personId", async (req, res): Promise<void> => {
 
 // Error handling middleware for multer
 import { Request, Response, NextFunction } from "express";
+import {
+  authorizeOptionalRequest,
+  authorizeRequestWithUser,
+} from "./authorization";
 
 app.use(
   (error: Error, _req: Request, res: Response, next: NextFunction): void => {
@@ -593,38 +424,17 @@ app.use(
 // Serve static files from the 'public' directory
 app.use("/uploads", express.static(path.join(__dirname, "../public/uploads")));
 
+// Update a person record
 app.put("/api/person/:personId", async (req, res) => {
+  // Verify authentication
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req as Request<{ personId: string }>;
+  res = authResult.res;
+  const userId = authResult.userId;
+  if (!userId) return;
+
   const personDetails = req.body as PersonDetails;
   const person = personDetails.person;
-
-  // Verify authentication
-  const authHeader = req.headers.authorization;
-  let userId: string | null = null;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
-
-  const token = authHeader?.split(" ")[1];
-
-  try {
-    const ticket = await authClient.verifyIdToken({
-      idToken: token!,
-      audience: process.env.AUTH_CLIENT as string,
-    });
-    const payload = ticket.getPayload();
-    userId = payload?.sub || null;
-  } catch (error) {
-    console.error("Token verification failed:", error);
-    res.status(401).json({ message: "Invalid token" });
-    return;
-  }
-
-  if (!userId) {
-    res.status(401).json({ message: "User not authenticated" });
-    return;
-  }
 
   try {
     const oldPersonData = await DBTree.getPersonDetails(person.id);
@@ -649,38 +459,17 @@ app.put("/api/person/:personId", async (req, res) => {
   res.status(200).json({ message: "Person updated" });
 });
 
+// Update a person's root status
 app.put("/api/person/:personId/root", async (req, res) => {
+  // Verify authentication
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req as Request<{ personId: string }>;
+  res = authResult.res;
+  const userId = authResult.userId;
+  if (!userId) return;
+
   const { personId } = req.params;
   const { isRoot } = req.body;
-
-  // Verify authentication
-  const authHeader = req.headers.authorization;
-  let userId: string | null = null;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    res.status(401).json({ message: "Unauthorized" });
-    return;
-  }
-
-  const token = authHeader?.split(" ")[1];
-
-  try {
-    const ticket = await authClient.verifyIdToken({
-      idToken: token!,
-      audience: process.env.AUTH_CLIENT as string,
-    });
-    const payload = ticket.getPayload();
-    userId = payload?.sub || null;
-  } catch (error) {
-    console.error("Token verification failed:", error);
-    res.status(401).json({ message: "Invalid token" });
-    return;
-  }
-
-  if (!userId) {
-    res.status(401).json({ message: "User not authenticated" });
-    return;
-  }
 
   try {
     const personData = await DBTree.getPersonDetails(personId);
@@ -703,6 +492,47 @@ app.put("/api/person/:personId/root", async (req, res) => {
   }
 
   res.status(200).json({ message: "Root updated" });
+});
+
+// Create a new person record
+app.post("/api/person", async (req, res) => {
+  // Verify authentication
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req;
+  res = authResult.res;
+  const userId = authResult.userId;
+  if (!userId) return;
+
+  const treeId = req.body.treeId as string;
+
+  // Get the tree metadata
+  let treeData;
+  try {
+    treeData = await DBTree.getTree(treeId);
+  } catch (error) {
+    console.error("Error fetching tree metadata:", error);
+    res.status(500).json({ message: "Failed to create person" });
+    return;
+  }
+  if (
+    treeData.metadata.creator !== userId &&
+    treeData.metadata.editors.indexOf(userId) === -1
+  ) {
+    res.status(403).json({ message: "Unauthorized: Not an editor" });
+    return;
+  }
+
+  let createdPerson: TreeMember;
+  try {
+    // Create the person record
+    createdPerson = await DBTree.createPerson(treeId, !treeData.root);
+  } catch (error) {
+    console.error("Error creating person record:", error);
+    res.status(500).json({ message: "Failed to create person" });
+    return;
+  }
+
+  res.status(201).json({ message: "Person created", person: createdPerson });
 });
 
 app.listen(PORT, () => {

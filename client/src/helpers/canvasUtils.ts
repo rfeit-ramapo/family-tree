@@ -1,6 +1,11 @@
 import defaultPerson from "../assets/default_person.svg";
 import eventBus from "./eventBus";
-import { treeToNodes, type TreeWithMembers } from "./treeToNodes";
+import {
+  memberToNode,
+  treeToNodes,
+  type TreeMember,
+  type TreeWithMembers,
+} from "./treeToNodes";
 
 interface CanvasState {
   ctx: CanvasRenderingContext2D;
@@ -68,22 +73,27 @@ export class DrawableNode extends DrawableObject {
 
     // Load the image if displayImageURL is provided
     this.image = new Image();
-    if (node.displayImageURL) {
-      this.image.src = node.displayImageURL;
-    } else {
-      this.image.src = defaultPerson;
+    this.loadImage(node.displayImageURL ?? defaultPerson);
+  }
+
+  private loadImage(url: string) {
+    if (url !== defaultPerson && !url.startsWith("http")) {
+      url = `${import.meta.env.VITE_SERVER_URL}${url}`;
     }
+    this.image = new Image();
+    this.image.src = url;
+    this.image.onload = () => {
+      eventBus.emit("updatedDrawable", this);
+    };
+    this.image.onerror = () => {
+      console.error("Failed to load image:", url);
+      if (url !== defaultPerson) {
+        this.loadImage(defaultPerson);
+      }
+    };
   }
 
   draw(ctx: CanvasRenderingContext2D) {
-    if (this.borderColor === "blue") {
-      console.log(
-        "Drawing node",
-        this.id,
-        "with borderColor",
-        this.borderColor
-      );
-    }
     // Draw the background shape first
     drawRoundedRectFromLeft(
       ctx,
@@ -100,11 +110,6 @@ export class DrawableNode extends DrawableObject {
 
     if (this.image.complete) {
       this.drawImage(ctx);
-    } else {
-      this.image.onload = () => {
-        this.drawImage(ctx);
-        eventBus.emit("updatedDrawable", this);
-      };
     }
 
     this.drawText(ctx);
@@ -164,7 +169,6 @@ export class DrawableNode extends DrawableObject {
   }
 
   toggleHover(toggle: boolean) {
-    console.log("Toggling hover for node", this.id, "to", toggle);
     this.borderColor = toggle
       ? "green"
       : this.node.isFocalPoint
@@ -186,6 +190,16 @@ export class DrawableNode extends DrawableObject {
     for (const relationship of this.endRelationships) {
       relationship.move(dx, dy, true);
     }
+  }
+
+  replaceImage(newImageUrl: string) {
+    const replacement = newImageUrl === "" ? defaultPerson : newImageUrl;
+    this.loadImage(replacement);
+  }
+
+  replaceName(newName: string) {
+    this.displayName = newName;
+    eventBus.emit("updatedDrawable", this);
   }
 }
 
@@ -317,11 +331,9 @@ export class DrawableRelationship extends DrawableObject {
   }
 
   toggleHover(toggle: boolean) {
-    console.log("Toggling hover for relationship", this.id, "to", toggle);
     this.lineWidth = toggle
       ? DrawingConstants.LINE_WIDTH * 2
       : DrawingConstants.LINE_WIDTH;
-    console.log("New line width:", this.lineWidth);
 
     eventBus.emit("updatedDrawable", this);
   }
@@ -940,7 +952,7 @@ export const drawLine = (
   ctx.restore(); // Restore the canvas state
 };
 
-export const testDraw = (
+export const drawObjects = (
   ctx: CanvasRenderingContext2D,
   tree: TreeWithMembers
 ) => {
@@ -1026,4 +1038,19 @@ export function updateSelectionBox(
   }
   selector.setSelection(selectedObject);
   eventBus.emit("updatedDrawable", selector);
+}
+
+export function addMemberToDrawing(
+  member: TreeMember,
+  renderList: DrawableObject[],
+  canvasState: CanvasState
+) {
+  const node = memberToNode(member, false);
+  const drawableNode = node.calculateLayout(
+    { ctx: canvasState.ctx, x: canvasState.x, y: canvasState.y },
+    renderList
+  );
+  renderList.unshift(drawableNode);
+  eventBus.emit("updatedDrawable", drawableNode);
+  return drawableNode;
 }

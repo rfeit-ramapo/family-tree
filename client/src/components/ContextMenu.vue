@@ -5,12 +5,12 @@
   :style="{ top: `${contextMenuPosition.y}px`, left: `${contextMenuPosition.x}px`, position: 'absolute' }"
   )
   ul.context-menu-list
-    li.context-menu-item(v-if="showViewOption()" @click="emitEvent(ContextMenuEvent.VIEW)") View
-    li.context-menu-item(v-if="showRenameOption()" @click="emitEvent(ContextMenuEvent.RENAME)") Rename
-    li.context-menu-item(v-if="showEditOption()" @click="emitEvent(ContextMenuEvent.EDIT)") Edit
-    li.context-menu-item(v-if="showDeleteOption()" @click="emitEvent(ContextMenuEvent.DELETE)") Delete
-    li.context-menu-item(v-if="showAddNodeOption()" @click="emitEvent(ContextMenuEvent.ADD_NODE)") Create Node
-    li.context-menu-item(v-if="showConnectOption()" @click="emitEvent(ContextMenuEvent.CONNECT)") Connect
+    li.context-menu-item(v-if="showViewOption()" @click="emitEvent(ContextMenuEvent.VIEW, $event)") View
+    li.context-menu-item(v-if="showRenameOption()" @click="emitEvent(ContextMenuEvent.RENAME, $event)") Rename
+    li.context-menu-item(v-if="showEditOption()" @click="emitEvent(ContextMenuEvent.EDIT, $event)") Edit
+    li.context-menu-item(v-if="showDeleteOption()" @click="emitEvent(ContextMenuEvent.DELETE, $event)") Delete
+    li.context-menu-item(v-if="showAddNodeOption()" @click="emitEvent(ContextMenuEvent.ADD_NODE, $event)") Create Node
+    li.context-menu-item(v-if="showConnectOption()" @click="emitEvent(ContextMenuEvent.CONNECT, $event)") Connect
 </template>
 
 <script lang="ts">
@@ -47,7 +47,7 @@ export default defineComponent({
       if (props.hasEditPerms) return false;
       return (
         props.contextMenuType === ContextMenuType.NODE ||
-        props.contextMenuType === ContextMenuType.RELATIONSHIP
+        props.contextMenuType === ContextMenuType.PARTNER_REL
       );
     };
 
@@ -55,7 +55,7 @@ export default defineComponent({
       if (!props.hasEditPerms) return false;
       return (
         props.contextMenuType === ContextMenuType.NODE ||
-        props.contextMenuType === ContextMenuType.RELATIONSHIP
+        props.contextMenuType === ContextMenuType.PARTNER_REL
       );
     };
 
@@ -63,7 +63,8 @@ export default defineComponent({
       if (!props.hasEditPerms) return false;
       return (
         props.contextMenuType === ContextMenuType.NODE ||
-        props.contextMenuType === ContextMenuType.RELATIONSHIP ||
+        props.contextMenuType === ContextMenuType.PARTNER_REL ||
+        props.contextMenuType === ContextMenuType.PARENT_REL ||
         props.contextMenuType === ContextMenuType.TREE
       );
     };
@@ -78,8 +79,8 @@ export default defineComponent({
       return props.contextMenuType === ContextMenuType.NODE;
     };
 
-    const emitEvent = (eventType: ContextMenuEvent) => {
-      emit(eventType);
+    const emitEvent = (eventType: ContextMenuEvent, event: MouseEvent) => {
+      emit(eventType, event);
     };
 
     const hasMenuItems = computed(() => {
@@ -102,6 +103,7 @@ export default defineComponent({
       showConnectOption,
       hasMenuItems,
       emitEvent,
+      ContextMenuEvent,
     };
   },
 });

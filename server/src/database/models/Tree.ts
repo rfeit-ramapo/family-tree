@@ -29,6 +29,9 @@ export class DBTree extends DBManager {
     rawTree.root = rawTree.root
       ? ((rawTree.root as unknown as Node).properties as TreeMember)
       : undefined;
+    rawTree.focal = rawTree.focal
+      ? ((rawTree.focal as unknown as Node).properties as TreeMember)
+      : undefined;
     if (rawTree.partner)
       rawTree.partner = rawTree.root
         ? ((rawTree.partner as unknown as Node).properties as TreeMember)
@@ -62,7 +65,7 @@ export class DBTree extends DBManager {
         (child) => (child as unknown as Node).properties as TreeMember
       );
 
-    return rawTree as TreeWithMembers & { tree: Required<Tree> };
+    return rawTree as TreeWithMembers;
   }
 
   static formatPersonDetails(rawPerson: RawPerson): PersonDetails {
@@ -368,7 +371,8 @@ export class DBTree extends DBManager {
     return;
   }
 
-  static async getTree(treeId: string) {
+  static async getTree(treeId: string, focalId?: string) {
+    console.log("Getting tree with focalId: ", focalId);
     const session = this.driver.session({ database: DBManager.db_name });
 
     // Path to the Cypher query file
@@ -385,12 +389,15 @@ export class DBTree extends DBManager {
     let result;
 
     try {
-      result = await session.executeWrite((t) => t.run(query, { id: treeId }));
+      result = await session.executeWrite((t) =>
+        t.run(query, { id: treeId, focalId: focalId || null })
+      );
     } finally {
       await session.close();
     }
 
-    return this.formatQueryResult(result, this.formatFullTree);
+    const test = this.formatQueryResult(result, this.formatFullTree);
+    return test;
   }
 
   static async getPersonDetails(personId: string, rootId = "") {
@@ -459,7 +466,7 @@ export class DBTree extends DBManager {
     return;
   }
 
-  static async createPerson(treeId: string, person: Omit<TreeMember, "id">) {
+  static async createPerson(treeId: string, isRoot: boolean) {
     const session = this.driver.session({ database: DBManager.db_name });
 
     // Path to the cypher query file
@@ -473,31 +480,22 @@ export class DBTree extends DBManager {
     );
     const query = fs.readFileSync(queryPath, "utf-8");
 
+    const personId = uuidv4();
     try {
       await session.executeWrite((t) =>
         t.run(query, {
           treeId,
-          id: uuidv4(),
-          firstName: person.firstName,
-          middleName: person.middleName,
-          lastName: person.lastName,
-          dateOfBirth: person.dateOfBirth
-            ? DateTime.fromStandardDate(person.dateOfBirth)
-            : undefined,
-          dateOfDeath: person.dateOfDeath
-            ? DateTime.fromStandardDate(person.dateOfDeath)
-            : undefined,
-          note: person.note,
-          gender: person.gender,
-          location: person.location,
-          imageUrl: person.imageUrl,
+          id: personId,
         })
       );
+      if (isRoot) {
+        await this.switchRoot(personId, true);
+      }
     } finally {
       await session.close();
     }
 
-    return;
+    return { id: personId };
   }
 
   static async addRelation(
@@ -683,6 +681,7 @@ export interface TreeMember {
 export interface TreeWithMembers {
   metadata: Tree;
   root?: TreeMember;
+  focal?: TreeMember;
   partner?: TreeMember;
   parent1?: TreeMember;
   parent2?: TreeMember;
