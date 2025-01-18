@@ -1,10 +1,13 @@
 <template lang="pug">
   .overlay(@click.self="closeBox")
+
     .person-container(v-if="personDetails")
       button.close-button(@click="closeBox") x
+
       .success-message(v-if="showSuccessMessage")
         span Success! Entered user data has been saved.
       .error-message(v-if="errorMessage") {{ errorMessage }}
+
       .person-header 
         h2(v-if="firstName || middleName || lastName") {{firstName ?? ""}} {{ middleName ?? ""}} {{lastName ?? ""}}
         h2(v-else) Unnamed Person
@@ -15,8 +18,10 @@
           @update:image="updateImage"
           @error="errorMessage = 'There was an error uploading the image. Please try again later.'"
         )
+
       .person-data
         h3 Data
+
         .data-row
           span.data-label First Name: 
           span.data-value#firstName(
@@ -27,6 +32,7 @@
               @keydown.enter="enterField"
               @keydown.tab="tabField"
           ) {{ firstName ?? "Unset" }}
+
         .data-row
           span.data-label Middle Name: 
           span.data-value#middleName(
@@ -37,6 +43,7 @@
               @keydown.enter="enterField"
               @keydown.tab="tabField"
           ) {{ middleName ?? "Unset" }}
+
         .data-row
           span.data-label Last Name: 
           span.data-value#lastName(
@@ -47,6 +54,7 @@
               @keydown.enter="enterField"
               @keydown.tab="tabField"
           ) {{ lastName ?? "Unset" }}
+
         .data-row
           span.data-label Gender: 
           span.data-value#gender(
@@ -67,6 +75,7 @@
               :class="{ active: index === activeGenderIndex }"
               @mousedown="selectGenderSuggestion(index)"
             ) {{ suggestion }}
+
         .data-row
           span.data-label Location: 
           span.data-value#location(
@@ -77,6 +86,7 @@
               @keydown.enter="enterField"
               @keydown.tab="tabField"
           ) {{ location ?? "Unset" }}
+
         .data-row
           span.data-label Date of Birth: 
           input.data-value#dateOfBirthInput(
@@ -84,6 +94,7 @@
             :value="formatDate(dateOfBirth)"
             @input="updateDateOfBirth"
           )
+
         .data-row
           span.data-label Date of Death: 
           input.data-value#dateOfDeathInput(
@@ -91,6 +102,7 @@
             :value="formatDate(dateOfDeath)"
             @input="updateDateOfDeath"
           )
+
       .edit-buttons(v-if="hasEditPerms")
         button.cancel-button(
           @click="fetchPerson"
@@ -98,33 +110,80 @@
         button.save-button(
           @click="savePerson"
         ) Save
+
+
       .connections
         h3 Connections
+
         .connection-row
-          span.connection-label Relation to Root:
-          .root-star(
-            :class="{ active: isRoot }"
-            @click="toggleRootStatus"
-            @mouseover="hoverRoot = true"
-            @mouseleave="hoverRoot = false"
-          )
-            i(:class="`fa${isRoot ? 's' : 'r'} fa-star`")
-          span.connection-value {{ personDetails.relationPath ?? "unrelated" }}
-        .connection-row(v-if="personDetails.parents.length > 0")
-          span.connection-label Partners: 
+          span
+            .root-star(
+              :class="{ active: isRoot }"
+              @click="toggleRootStatus"
+              @mouseover="hoverRoot = true"
+              @mouseleave="hoverRoot = false"
+            )
+              i(:class="`fa${isRoot ? 's' : 'r'} fa-star`")
+            span.connection-label Relation to Root:    
+            span.connection-value {{ personDetails.relationPath ?? "unrelated" }}
+
+        .connection-row
+          span.connection-label Partners:
           ul.connection-list
-            li.connection-item(v-for="partner in personDetails.partners") {{ partner }}
-        .connection-row(v-if="personDetails.currentPartner")
-          span.connection-label Current Partner: 
-          span.connection-value {{ personDetails.currentPartner }}
-        .connection-row(v-if="personDetails.parents.length > 0")
+            li.connection-item(v-for="partner in personDetails.partners" :key="partner.id")
+              button.delete-button(@click="removeConnection(partner.id)") -
+              i.partner-star(
+                :class="`fa${partner.isCurrent ? 's' : 'r'} fa-star`"
+                @click="toggleCurrentPartner(partner.id)"
+              )
+              span {{ computeName(partner) }}
+            AutoSuggestion(
+              v-if="showAddPartner"
+              :originId="personDetails.person.id"
+              :suggestionType="SuggestionType.PARTNER"
+              @close="showAddPartner = false; fetchPerson()"
+            )
+          button.add-connection-btn(@click="showAddPartner = true") +
+
+        .connection-row
+          span.connection-label(v-if="personDetails.currentPartner"
+          ) Current Partner: 
+            span.connection-value {{ computeName(personDetails.currentPartner) }}
+
+        .connection-row
           span.connection-label Parents: 
           ul.connection-list
-            li.connection-item(v-for="parent in personDetails.parents") {{ parent }}
-        .connection-row(v-if="personDetails.children.length > 0")
+            li.connection-item(
+              v-for="parent in personDetails.parents"
+            ) 
+              button.delete-button(@click="removeConnection(partner.id)") -
+              span {{ computeName(parent) }}
+            AutoSuggestion(
+              v-if="showAddParent && personDetails.parents.length < 2"
+              :originId="personDetails.person.id"
+              :suggestionType="SuggestionType.PARENT"
+              @close="showAddParent = false; fetchPerson()"
+            )
+          button.add-connection-btn(
+            v-if="personDetails.parents.length < 2"
+            @click="showAddParent = true"
+          ) +
+
+        .connection-row
           span.connection-label Children: 
           ul.connection-list
-            li.connection-item(v-for="child in personDetails.children") {{ child }}
+            li.connection-item(
+              v-for="child in personDetails.children"
+            ) 
+              button.delete-button(@click="removeConnection(partner.id)") -
+              span {{ computeName(child) }}
+            AutoSuggestion(
+              v-if="showAddChild"
+              :originId="personDetails.person.id"
+              :suggestionType="SuggestionType.CHILD"
+              @close="showAddChild = false; fetchPerson()"
+            )
+          button.add-connection-btn(@click="showAddChild = true") +
 
 
       
@@ -134,8 +193,9 @@
 import { computed, defineComponent, onMounted, ref, type Ref } from "vue";
 import { type PersonDetails, type TreeMember } from "@/helpers/treeToNodes";
 
-import GenderAutoSuggest from "./GenderAutoSuggest.vue";
 import ImageUpload from "./ImageUpload.vue";
+import AutoSuggestion from "./AutoSuggestion.vue";
+import { SuggestionType } from "@/helpers/sharedTypes";
 
 export default defineComponent({
   name: "PersonView",
@@ -146,8 +206,8 @@ export default defineComponent({
     },
   },
   components: {
-    GenderAutoSuggest,
     ImageUpload,
+    AutoSuggestion,
   },
   setup(props, { emit }) {
     const personDetails: Ref<PersonDetails | null> = ref(null);
@@ -156,6 +216,9 @@ export default defineComponent({
     const genderSuggestions = ref<string[]>([]);
     const activeGenderIndex = ref(-1);
     const showSuccessMessage = ref(false);
+    const showAddChild = ref(false);
+    const showAddParent = ref(false);
+    const showAddPartner = ref(false);
 
     const typeableFields: readonly string[] = [
       "firstName",
@@ -191,20 +254,12 @@ export default defineComponent({
 
         personDetails.value = await response.json();
         const userId = localStorage.getItem("userId");
-        console.log("userId", userId);
 
         hasEditPerms.value =
           userId && personDetails.value
             ? personDetails.value.editors.includes(userId) ||
               personDetails.value.creator === userId
             : false;
-
-        console.log("hasEditPerms", hasEditPerms.value);
-
-        console.log(
-          "Person data",
-          JSON.stringify(personDetails.value, null, 2)
-        );
       } catch (error) {
         console.error("Error fetching person data", error);
         errorMessage.value =
@@ -385,7 +440,6 @@ export default defineComponent({
           headers["Authorization"] = `Bearer ${token}`;
         }
 
-        console.log("Saving person data", JSON.stringify(personDetails.value));
         const response = await fetch(`/api/person/${props.personId}`, {
           method: "PUT",
           headers,
@@ -422,6 +476,19 @@ export default defineComponent({
       emit("close");
     };
 
+    const addPartner = () => {
+      // Fetch the possible partners
+    };
+
+    const computeName = (person: TreeMember) => {
+      if (person.firstName || person.middleName || person.lastName) {
+        return `${person.firstName ?? ""} ${person.middleName ?? ""} ${
+          person.lastName ?? ""
+        }`;
+      }
+      return `Unnamed Person`;
+    };
+
     const firstName = computed(() => personDetails.value?.person.firstName);
     const middleName = computed(() => personDetails.value?.person.middleName);
     const lastName = computed(() => personDetails.value?.person.lastName);
@@ -433,10 +500,7 @@ export default defineComponent({
     const isRoot = computed(() => personDetails.value?.isRoot);
 
     const fullName = computed(() => {
-      if (firstName.value || middleName.value || lastName.value) {
-        return `${firstName.value ?? ""} ${middleName.value ?? ""} ${lastName.value ?? ""}`;
-      }
-      return `Unnamed Person`;
+      return computeName(personDetails.value!.person);
     });
 
     onMounted(async () => {
@@ -444,6 +508,12 @@ export default defineComponent({
     });
 
     return {
+      showAddChild,
+      showAddParent,
+      showAddPartner,
+      SuggestionType,
+      addPartner,
+      computeName,
       closeBox,
       fetchPerson,
       savePerson,
@@ -712,4 +782,50 @@ export default defineComponent({
 
   &:hover
     color #000
+
+.add-connection-btn
+  background-color transparent
+  border none
+  color green
+  font-size 1.5em
+  cursor pointer
+  padding 0
+  margin 0
+  display inline-flex
+  align-items center
+  justify-content left
+  max-width 15px
+  &:hover
+    color darkgreen
+  &:focus
+    outline none
+
+.partner-star
+  display inline-block
+  margin-right 8px
+  cursor pointer
+  color lightgray
+  transition color 0.3s ease
+  &.active
+    color yellow
+  &:hover
+    color darken(yellow, 15%)
+
+.delete-button
+  background-color transparent
+  border none
+  color red
+  font-size 1.5em
+  cursor pointer
+  padding 0
+  margin 0
+  margin-right 8px
+  display inline-flex
+  align-items center
+  justify-content left
+  max-width 15px
+  &:hover
+    color darkred
+  &:focus
+    outline none
 </style>

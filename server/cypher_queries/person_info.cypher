@@ -11,16 +11,16 @@ WHERE NOT isRoot
 OPTIONAL MATCH (p)<-[:PARENT_OF]-(parent:Person)
 OPTIONAL MATCH (p)-[:PARTNER_OF {current: true}]-(currentPartner:Person)
 OPTIONAL MATCH (p)-[:PARTNER_OF]-(partner:Person)
-WHERE currentPartner.id <> partner.id
+WHERE currentPartner IS NULL OR currentPartner.id <> partner.id
 OPTIONAL MATCH (p)-[:PARENT_OF]->(child:Person)
 
 RETURN 
   p AS person, 
   relationPath,
-  COLLECT(parent) AS parents, 
+  COLLECT(DISTINCT parent) AS parents, 
   currentPartner, 
-  COLLECT(partner) AS partners, 
-  COLLECT(child) AS children, 
+  COLLECT(DISTINCT partner) AS partners, 
+  COLLECT(DISTINCT child) AS children, 
   isRoot,
   t.isPublic AS isPublic,
   u.id AS creator,

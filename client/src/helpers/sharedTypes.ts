@@ -14,3 +14,9 @@ export enum ContextMenuEvent {
   EDIT = "edit",
   VIEW = "view",
 }
+
+export enum SuggestionType {
+  PARENT,
+  CHILD,
+  PARTNER,
+}

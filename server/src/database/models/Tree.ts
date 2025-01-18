@@ -74,7 +74,7 @@ export class DBTree extends DBManager {
       relationPath: rawPerson.isRoot
         ? "self"
         : rawPerson.relationPath
-        ? this.pathToString(
+        ? DBTree.pathToString(
             rawPerson.relationPath,
             rawPerson.person.properties.gender
           )
@@ -96,6 +96,17 @@ export class DBTree extends DBManager {
       isPublic: rawPerson.isPublic,
       viewers: rawPerson.viewers,
       editors: rawPerson.editors,
+    };
+  }
+
+  static formatSuggestions(rawSuggestions: RawSuggestions) {
+    return {
+      firstSuggestions: rawSuggestions.firstSuggestions.map(
+        (suggestion) => suggestion.properties as TreeMember
+      ),
+      otherSuggestions: rawSuggestions.otherSuggestions.map(
+        (suggestion) => suggestion.properties as TreeMember
+      ),
     };
   }
 
@@ -396,7 +407,7 @@ export class DBTree extends DBManager {
       await session.close();
     }
 
-    const test = this.formatQueryResult(result, this.formatFullTree);
+    const test = DBTree.formatQueryResult(result, DBTree.formatFullTree);
     return test;
   }
 
@@ -423,7 +434,7 @@ export class DBTree extends DBManager {
       await session.close();
     }
 
-    return this.formatQueryResult(result, this.formatPersonDetails);
+    return this.formatQueryResult(result, DBTree.formatPersonDetails);
   }
 
   static async updatePerson(person: TreeMember) {
@@ -514,7 +525,9 @@ export class DBTree extends DBManager {
       "cypher_queries",
       "add_relation.cypher"
     );
-    const query = fs.readFileSync(queryPath, "utf-8");
+    const query = fs
+      .readFileSync(queryPath, "utf-8")
+      .replace(/\brelation\b/g, relation);
 
     try {
       await session.executeWrite((t) =>
@@ -590,15 +603,15 @@ export class DBTree extends DBManager {
 
   static async getSuggestedRelations(
     originId: string,
-    relation: "PARENT" | "PARTNER" | "CHILD"
+    relation: "children" | "partners" | "parents"
   ) {
     const session = this.driver.session({ database: DBManager.db_name });
 
     // Path to the cypher query file
     const queryFile =
-      relation === "PARENT"
+      relation === "parents"
         ? "suggest_parents.cypher"
-        : relation === "CHILD"
+        : relation === "children"
         ? "suggest_children.cypher"
         : "suggest_partners.cypher";
 
@@ -612,8 +625,9 @@ export class DBTree extends DBManager {
     );
     const query = fs.readFileSync(queryPath, "utf-8");
 
+    let result;
     try {
-      await session.executeRead((t) =>
+      result = await session.executeRead((t) =>
         t.run(query, {
           id: originId,
         })
@@ -622,7 +636,7 @@ export class DBTree extends DBManager {
       await session.close();
     }
 
-    return;
+    return DBTree.formatQueryResult(result, DBTree.formatSuggestions);
   }
 
   static async switchRoot(personId: string, isRoot: boolean) {
@@ -718,4 +732,9 @@ export interface PersonDetails {
   creator: string;
   viewers: string[];
   editors: string[];
+}
+
+interface RawSuggestions {
+  firstSuggestions: Node[];
+  otherSuggestions: Node[];
 }

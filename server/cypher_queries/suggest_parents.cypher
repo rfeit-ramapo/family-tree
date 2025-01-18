@@ -19,6 +19,5 @@ OPTIONAL MATCH (t)-[:CONTAINS]->(treeMember:Person)
 WHERE treeMember.id <> p.id AND NOT treeMember IN relatives
 
 RETURN
-    p AS person,
     siblingParents + partnersOfParent AS firstSuggestions,
     COLLECT(DISTINCT treeMember) AS otherSuggestions

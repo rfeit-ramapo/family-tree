@@ -535,6 +535,79 @@ app.post("/api/person", async (req, res) => {
   res.status(201).json({ message: "Person created", person: createdPerson });
 });
 
+app.get("/api/suggestions/:originId/:type", async (req, res) => {
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req as Request<{
+    originId: string;
+    type: string;
+  }>;
+  res = authResult.res;
+  const userId = authResult.userId;
+
+  if (!userId) return;
+
+  const { originId, type } = req.params;
+  if (type !== "children" && type !== "partners" && type !== "parents") {
+    res.status(400).json({ message: "Invalid suggestion type" });
+    return;
+  }
+
+  try {
+    // Fetch trees for the user from the database
+    const suggestions = await DBTree.getSuggestedRelations(
+      originId,
+      type as "children" | "partners" | "parents"
+    );
+    res.status(200).json(suggestions);
+    return;
+  } catch (error) {
+    console.error("Error fetching trees from database:", error);
+    res.status(500).json({ message: "Failed to fetch trees" });
+    return;
+  }
+});
+
+app.post("/api/connect/:originId/:targetId/:type", async (req, res) => {
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req as Request<{
+    originId: string;
+    targetId: string;
+    type: string;
+  }>;
+  res = authResult.res;
+  const userId = authResult.userId;
+
+  if (!userId) return;
+
+  let { originId, targetId, type } = req.params;
+  if (type === "child") {
+    type = "PARENT_OF";
+  } else if (type === "parent") {
+    type = "PARENT_OF";
+    [originId, targetId] = [targetId, originId];
+  } else if (type === "partner") {
+    type = "PARTNER_OF";
+  } else {
+    res.status(400).json({ message: "Invalid suggestion type" });
+    return;
+  }
+
+  try {
+    // Fetch trees for the user from the database
+    await DBTree.addRelation(
+      originId,
+      targetId,
+      type as "PARENT_OF" | "PARTNER_OF"
+    );
+    res.status(200).json({ message: "Connection created" });
+    return;
+  } catch (error) {
+    console.error("Error fetching trees from database:", error);
+    res.status(500).json({ message: "Failed to fetch trees" });
+    return;
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

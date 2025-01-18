@@ -4,10 +4,6 @@
     .error-message(v-if="errorMessage")
       p {{ errorMessage }}
   
-    //.main-container
-    //  p(v-if="!errorMessage") This is a sample page for the tree. Below is the JSON data.
-    //  pre(v-if="!errorMessage") {{ JSON.stringify(tree, null, 2) }}
-
     PersonView(
       :personId="selectedItem.node.id"
       v-if="showPersonModal" 
@@ -60,12 +56,7 @@ import {
   updateSelectionBox,
   type Position,
 } from "@/helpers/canvasUtils";
-import type {
-  PersonDetails,
-  Tree,
-  TreeMember,
-  TreeWithMembers,
-} from "@/helpers/treeToNodes";
+import type { TreeMember, TreeWithMembers } from "@/helpers/treeToNodes";
 import eventBus from "@/helpers/eventBus";
 import { ContextMenuType } from "@/helpers/sharedTypes";
 import ContextMenu from "./ContextMenu.vue";
