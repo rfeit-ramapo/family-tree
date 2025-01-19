@@ -4,31 +4,37 @@
         img(src="@/assets/pan_icon.png" alt="Pan icon")
       .sidebar-item#select(v-on:click="switchTool(Tool.SELECT)" :class="{ selected: selectedTool === Tool.SELECT }")
         img(src="@/assets/select_icon.png" alt="Select icon")
+      .sidebar-item#jump-to(v-on:click="switchTool(Tool.JUMP_TO)" :class="{ selected: selectedTool === Tool.JUMP_TO }")
+        img(src="@/assets/jump_to_icon.png" alt="Jump to icon")
   </template>
 
 <script lang="ts">
-import { defineComponent, ref } from "vue";
+import { defineComponent } from "vue";
 
 export enum Tool {
   PAN = "pan",
   SELECT = "select",
+  JUMP_TO = "jump-to",
 }
 
 export default defineComponent({
   name: "SideBar",
-  setup(_, { emit }) {
+  props: {
+    selectedTool: {
+      type: String,
+      required: true,
+    },
+  },
+  setup(props, { emit }) {
     // Track the selected tool
-    const selectedTool = ref<Tool>(Tool.PAN);
 
     // Function to switch the selected tool
     const switchTool = (tool: Tool) => {
-      selectedTool.value = tool; // Update the currently selected tool
       emit("toolChange", tool); // Emit an event to notify the parent component
     };
 
     return {
       Tool,
-      selectedTool,
       switchTool,
     };
   },

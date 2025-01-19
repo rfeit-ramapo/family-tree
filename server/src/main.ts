@@ -576,6 +576,46 @@ app.get("/api/suggestions/:originId/:type", async (req, res) => {
   }
 });
 
+app.get("/api/tree/get-people/:treeId", async (req, res) => {
+  const authResult = await authorizeOptionalRequest(req, res);
+  req = authResult.req as Request<{ treeId: string }>;
+  res = authResult.res;
+  const userId = authResult.userId;
+
+  // Verify that the user is authorized to view the tree
+  const { treeId } = req.params;
+  let fullTree, metadata;
+  try {
+    // Fetch the tree from the database
+    fullTree = await DBTree.getTree(treeId);
+    metadata = fullTree.metadata;
+  } catch (error) {
+    console.error("Error fetching tree:", error);
+    res.status(500).json({ message: "Failed to fetch tree" });
+    return;
+  }
+
+  if (
+    !metadata.isPublic &&
+    metadata.creator !== userId &&
+    (!userId || metadata.viewers.indexOf(userId) === -1)
+  ) {
+    res.status(403).json({ message: "Unauthorized: Tree is private" });
+    return;
+  }
+
+  // Process the request
+  try {
+    const people = await DBTree.getPeople(treeId);
+    res.status(200).json(people);
+    return;
+  } catch (error) {
+    console.error("Error fetching people from database:", error);
+    res.status(500).json({ message: "Failed to fetch people" });
+    return;
+  }
+});
+
 // Connect two people in the tree
 app.post("/api/connect/:originId/:targetId/:type", async (req, res) => {
   const authResult = await authorizeRequestWithUser(req, res);
@@ -644,6 +684,26 @@ app.post(
     }
   }
 );
+
+app.post("/api/tree/toggle-public/:treeId", async (req, res) => {
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req as Request<{ treeId: string }>;
+  res = authResult.res;
+  const userId = authResult.userId;
+
+  if (!userId) return;
+  const { treeId } = req.params;
+
+  try {
+    await DBTree.togglePublic(userId, treeId);
+    res.status(200).json({ message: "Tree visibility toggled" });
+    return;
+  } catch (error) {
+    console.error("Error toggling tree visibility:", error);
+    res.status(500).json({ message: "Failed to toggle tree visibility" });
+    return;
+  }
+});
 
 // Remove a connection between two people
 app.post("/api/connection/remove/:originId/:targetId/", async (req, res) => {

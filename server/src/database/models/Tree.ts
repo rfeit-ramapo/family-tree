@@ -268,24 +268,6 @@ export class DBTree extends DBManager {
     return this.formatQueryResultArray(result, this.formatTree);
   }
 
-  static async getShared(sharedWith: string) {
-    const session = this.driver.session({ database: DBManager.db_name });
-    let result;
-    try {
-      result = await session.executeRead((t) =>
-        t.run(
-          `MATCH (t:Tree)-[:SHARED_WITH]->(u:User {id: $id})
-           RETURN t{.*} AS tree`,
-          { id: sharedWith }
-        )
-      );
-    } finally {
-      await session.close();
-    }
-
-    return this.formatQueryResultArray(result, this.formatTree);
-  }
-
   static async updateModified(treeId: string) {
     const session = this.driver.session({ database: DBManager.db_name });
 
@@ -409,6 +391,29 @@ export class DBTree extends DBManager {
 
     const test = DBTree.formatQueryResult(result, DBTree.formatFullTree);
     return test;
+  }
+
+  static async togglePublic(userId: string, treeId: string) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the Cypher query file
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      "toggle_public.cypher"
+    );
+    const query = fs.readFileSync(queryPath, "utf-8");
+
+    try {
+      await session.executeWrite((t) => t.run(query, { id: treeId, userId }));
+    } finally {
+      await session.close();
+    }
+
+    return;
   }
 
   static async getPersonDetails(personId: string, rootId = "") {
@@ -665,6 +670,36 @@ export class DBTree extends DBManager {
     }
 
     return DBTree.formatQueryResult(result, DBTree.formatSuggestions);
+  }
+
+  static async getPeople(treeId: string) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the cypher query file
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      "get_people.cypher"
+    );
+    const query = fs.readFileSync(queryPath, "utf-8");
+
+    let result;
+    try {
+      result = await session.executeRead((t) =>
+        t.run(query, {
+          id: treeId,
+        })
+      );
+    } finally {
+      await session.close();
+    }
+    const peopleArray = result.records[0].toObject().people as Node[];
+    return peopleArray.map((rawObject: Node) => {
+      return rawObject.properties as TreeMember;
+    });
   }
 
   static async switchRoot(personId: string, isRoot: boolean) {

@@ -3,6 +3,13 @@
     // If there is an error fetching the tree, show an error message
     .error-message(v-if="errorMessage")
       p {{ errorMessage }}
+
+    JumpToPerson(
+      :treeId="treeId"
+      v-if="showJumpModal"
+      @close="changeTool(Tool.PAN)"
+      @select="jumpToPerson"
+    )
   
     PersonView(
       :personId="selectedItem.node.id"
@@ -36,7 +43,7 @@
         @add-node="createNode"
         @view="editItem"
       )
-    SideBar(@toolChange="changeTool")
+    SideBar(:selectedTool="selectedTool" @toolChange="changeTool")
 </template>
 
 <script lang="ts">
@@ -60,6 +67,7 @@ import eventBus from "@/helpers/eventBus";
 import { ContextMenuType } from "@/helpers/sharedTypes";
 import ContextMenu from "./ContextMenu.vue";
 import PersonView from "./PersonView.vue";
+import JumpToPerson from "./JumpToPerson.vue";
 
 export default defineComponent({
   name: "TreeView",
@@ -68,6 +76,7 @@ export default defineComponent({
     SideBar,
     ContextMenu,
     PersonView,
+    JumpToPerson,
   },
   props: {
     treeId: {
@@ -91,6 +100,7 @@ export default defineComponent({
     const contextMenuPosition: Ref<Position> = ref({ x: 0, y: 0 });
     const hasEditPerms = ref(false);
     const contextMenuType = ref<ContextMenuType>(ContextMenuType.CANVAS);
+    const showJumpModal = ref(false);
 
     const calcOriginalCoords = (event: MouseEvent): Position => {
       const rect = canvas.value.getBoundingClientRect(); // Get canvas bounds
@@ -105,6 +115,13 @@ export default defineComponent({
     };
 
     const changeTool = (tool: Tool) => {
+      // If jumping, show the modal, otherwise, cancel it
+      if (tool === Tool.JUMP_TO) {
+        showJumpModal.value = true;
+      } else {
+        showJumpModal.value = false;
+      }
+
       console.log("changing tool to", tool);
       // Deselect anything on tool change
       selectedItem.value = null;
@@ -626,9 +643,19 @@ export default defineComponent({
     };
 
     const reloadTree = async (focalId?: string) => {
+      // Switch to pan tool if on jump tool
+      if (selectedTool.value === Tool.JUMP_TO) {
+        changeTool(Tool.PAN);
+      }
+
+      // Reload canvas values
       setupCanvas();
       await fetchTreeMetadata(focalId);
       setupObjects();
+    };
+
+    const jumpToPerson = (selectedPerson: TreeMember) => {
+      reloadTree(selectedPerson.id);
     };
 
     onMounted(async () => {
@@ -673,6 +700,8 @@ export default defineComponent({
       contextMenuType,
       ContextMenuType,
       hasEditPerms,
+      jumpToPerson,
+      showJumpModal,
     };
   },
 });
