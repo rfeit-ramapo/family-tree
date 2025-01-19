@@ -122,6 +122,12 @@ export default defineComponent({
         showJumpModal.value = false;
       }
 
+      // If this is the home tool, return to user page
+      if (tool === Tool.HOME) {
+        window.location.href = "/trees";
+        return;
+      }
+
       console.log("changing tool to", tool);
       // Deselect anything on tool change
       selectedItem.value = null;

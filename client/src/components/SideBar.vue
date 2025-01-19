@@ -6,6 +6,8 @@
         img(src="@/assets/select_icon.png" alt="Select icon")
       .sidebar-item#jump-to(v-on:click="switchTool(Tool.JUMP_TO)" :class="{ selected: selectedTool === Tool.JUMP_TO }")
         img(src="@/assets/jump_to_icon.png" alt="Jump to icon")
+      .sidebar-item#home(v-on:click="switchTool(Tool.HOME)" :class="{ selected: selectedTool === Tool.HOME }")
+        img(src="@/assets/home_icon.png" alt="Home icon")
   </template>
 
 <script lang="ts">
@@ -15,6 +17,7 @@ export enum Tool {
   PAN = "pan",
   SELECT = "select",
   JUMP_TO = "jump-to",
+  HOME = "home",
 }
 
 export default defineComponent({
