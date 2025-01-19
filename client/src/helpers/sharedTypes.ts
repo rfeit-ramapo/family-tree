@@ -13,6 +13,7 @@ export enum ContextMenuEvent {
   CONNECT = "connect",
   EDIT = "edit",
   VIEW = "view",
+  PUBLIC = "toggle-public",
 }
 
 export enum SuggestionType {

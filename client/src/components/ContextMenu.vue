@@ -10,6 +10,9 @@
     li.context-menu-item(v-if="showEditOption()" @click="emitEvent(ContextMenuEvent.EDIT, $event)") Edit
     li.context-menu-item(v-if="showDeleteOption()" @click="emitEvent(ContextMenuEvent.DELETE, $event)") Delete
     li.context-menu-item(v-if="showAddNodeOption()" @click="emitEvent(ContextMenuEvent.ADD_NODE, $event)") Create Node
+    li.context-menu-item(v-if="showPublicOption()" @click="emitEvent(ContextMenuEvent.PUBLIC)")
+      span(v-if="isPublic") Make Private
+      span(v-else) Make Public
 </template>
 
 <script lang="ts">
@@ -34,6 +37,10 @@ export default defineComponent({
     hasEditPerms: {
       type: Boolean,
       default: true,
+    },
+    isPublic: {
+      type: Boolean,
+      default: false,
     },
   },
   setup(props, { emit }) {
@@ -67,6 +74,10 @@ export default defineComponent({
       return props.contextMenuType === ContextMenuType.CANVAS;
     };
 
+    const showPublicOption = () => {
+      return props.contextMenuType === ContextMenuType.TREE;
+    };
+
     const emitEvent = (eventType: ContextMenuEvent, event: MouseEvent) => {
       emit(eventType, event);
     };
@@ -77,7 +88,8 @@ export default defineComponent({
         showEditOption() ||
         showDeleteOption() ||
         showAddNodeOption() ||
-        showViewOption()
+        showViewOption() ||
+        showPublicOption()
       );
     });
 
@@ -87,6 +99,7 @@ export default defineComponent({
       showEditOption,
       showDeleteOption,
       showAddNodeOption,
+      showPublicOption,
       hasMenuItems,
       emitEvent,
       ContextMenuEvent,

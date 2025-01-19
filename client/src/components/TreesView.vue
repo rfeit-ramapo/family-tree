@@ -40,14 +40,16 @@
     // Otherwise, display the trees
     .tree-card(v-for="tree in trees" :key="tree.id" @contextmenu.prevent="showContextMenu($event, tree)" @click="viewTree(tree.id)")
       h3.tree-name {{ tree.name }}
-      p Last accessed: {{ formatDate(tree.lastModified) }}
+      p Date created: {{ formatDate(tree.lastModified) }}
       // Additional tree information can go here
 
   ContextMenu(
     :contextMenuType="ContextMenuType.TREE"
     :contextMenuVisible="contextMenuVisible"
     :contextMenuPosition="contextMenuPosition"
+    :isPublic="selectedTree?.isPublic"
     @rename="showRenameModal"
+    @toggle-public="togglePublic"
     @delete="showDeleteModal"
   )
 
@@ -266,6 +268,36 @@ export default defineComponent({
       router.push(`/${treeId}`);
     };
 
+    const togglePublic = async () => {
+      if (!selectedTree.value) {
+        alert("Error in selecting tree. Please try again.");
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          `/api/tree/toggle-public/${selectedTree.value.id}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) throw new Error("Failed to toggle tree privacy");
+
+        await fetchTrees(); // Refresh the tree list
+      } catch (error) {
+        console.error("Error toggling tree privacy:", error);
+        alert("Failed to toggle tree privacy. Please try again.");
+      }
+
+      hideContextMenu();
+    };
+
     // Add event listeners when component is mounted
     onMounted(() => {
       document.addEventListener("click", handleClickOutside);
@@ -299,6 +331,7 @@ export default defineComponent({
       deleteTree,
       viewTree,
       ContextMenuType,
+      togglePublic,
     };
   },
 

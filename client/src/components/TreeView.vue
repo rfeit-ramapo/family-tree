@@ -37,7 +37,7 @@
         :contextMenuType="contextMenuType"
         :contextMenuVisible="contextMenuVisible"
         :contextMenuPosition="contextMenuPosition"
-        :editPerms="hasEditPerms"
+        :hasEditPerms="hasEditPerms"
         @edit="editItem"
         @delete="deleteItem"
         @add-node="createNode"
@@ -231,8 +231,10 @@ export default defineComponent({
         const userId = localStorage.getItem("userId");
         hasEditPerms.value =
           userId && tree.value
-            ? tree.value.metadata.editors.includes(userId)
+            ? tree.value.metadata.editors.includes(userId) ||
+              tree.value.metadata.creator === userId
             : false;
+        console.log("hasEditPerms:", hasEditPerms.value);
       } catch (error) {
         console.error("Error fetching the tree:", error);
         errorMessage.value =

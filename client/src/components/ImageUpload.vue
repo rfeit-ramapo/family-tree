@@ -16,7 +16,7 @@
         alt="Default Person Image"
       )
         
-      .image-overlay(v-if="showOverlay")
+      .image-overlay(v-if="showOverlay && hasEditPerms")
         span.overlay-text {{ currentImage ? 'Change Image' : 'Add Image' }}
     
       //- Image Upload Modal
@@ -60,6 +60,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    hasEditPerms: {
+      type: Boolean,
+      default: false,
+    },
   },
   emits: ["update:image", "error"],
   setup(props, { emit }) {
@@ -76,7 +80,7 @@ export default defineComponent({
     );
 
     const handleImageClick = () => {
-      showModal.value = true;
+      if (props.hasEditPerms) showModal.value = true;
     };
 
     const closeModal = () => {

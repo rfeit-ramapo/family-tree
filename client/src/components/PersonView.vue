@@ -14,6 +14,7 @@
       .person-image
         ImageUpload(
           :initial-image="imageUrl"
+          :hasEditPerms="hasEditPerms"
           :person-id="personDetails.person.id"
           @update:image="updateImage"
           @error="errorMessage = 'There was an error uploading the image. Please try again later.'"
@@ -26,7 +27,7 @@
           span.data-label First Name: 
           span.data-value#firstName(
               :class="{unset: !firstName }"
-              :contentEditable="true"
+              :contentEditable="hasEditPerms"
               @focus="textFocus"
               @blur="textBlur"
               @keydown.enter="enterField"
@@ -37,7 +38,7 @@
           span.data-label Middle Name: 
           span.data-value#middleName(
               :class="{unset: !middleName }"
-              :contentEditable="true"
+              :contentEditable="hasEditPerms"
               @focus="textFocus"
               @blur="textBlur"
               @keydown.enter="enterField"
@@ -48,7 +49,7 @@
           span.data-label Last Name: 
           span.data-value#lastName(
               :class="{unset: !lastName }"
-              :contentEditable="true"
+              :contentEditable="hasEditPerms"
               @focus="textFocus"
               @blur="textBlur"
               @keydown.enter="enterField"
@@ -59,7 +60,7 @@
           span.data-label Gender: 
           span.data-value#gender(
               :class="{unset: !gender }"
-              :contentEditable="true"
+              :contentEditable="hasEditPerms"
               @focus="textFocus"
               @blur="textBlur"
               @input="updateGenderSuggestions"
@@ -80,7 +81,7 @@
           span.data-label Location: 
           span.data-value#location(
               :class="{unset: !location }"
-              :contentEditable="true"
+              :contentEditable="hasEditPerms"
               @focus="textFocus"
               @blur="textBlur"
               @keydown.enter="enterField"
@@ -91,6 +92,7 @@
           span.data-label Date of Birth: 
           input.data-value#dateOfBirthInput(
             type="date"
+            :disabled="!hasEditPerms"
             :value="formatDate(dateOfBirth)"
             @blur="updateDateOfBirth"
           )
@@ -99,6 +101,7 @@
           span.data-label Date of Death: 
           input.data-value#dateOfDeathInput(
             type="date"
+            :disabled="!hasEditPerms"
             :value="formatDate(dateOfDeath)"
             @blur="updateDateOfDeath"
           )
@@ -120,8 +123,6 @@
             .root-star(
               :class="{ active: isRoot }"
               @click="toggleRootStatus"
-              @mouseover="hoverRoot = true"
-              @mouseleave="hoverRoot = false"
             )
               i(:class="`fa${isRoot ? 's' : 'r'} fa-star`")
             span.connection-label Relation to Root: 
@@ -138,7 +139,7 @@
               )
               span {{ computeName(partner) }}
             AutoSuggestion(
-              v-if="showAddPartner"
+              v-if="showAddPartner && hasEditPerms"
               :originId="personDetails.person.id"
               :suggestionType="SuggestionType.PARTNER"
               @close="reloadPerson"
@@ -159,7 +160,7 @@
               button.delete-button(@click="removeConnection(parent.id)") -
               span {{ computeName(parent) }}
             AutoSuggestion(
-              v-if="showAddParent && personDetails.parents.length < 2"
+              v-if="showAddParent && personDetails.parents.length < 2 && hasEditPerms"
               :originId="personDetails.person.id"
               :suggestionType="SuggestionType.PARENT"
               @close="reloadPerson"
@@ -178,7 +179,7 @@
               button.delete-button(@click="removeConnection(child.id)") -
               span {{ computeName(child) }}
             AutoSuggestion(
-              v-if="showAddChild"
+              v-if="showAddChild && hasEditPerms"
               :originId="personDetails.person.id"
               :suggestionType="SuggestionType.CHILD"
               @close="reloadPerson"
@@ -391,6 +392,7 @@ export default defineComponent({
     };
 
     const toggleRootStatus = async () => {
+      if (!hasEditPerms.value) return;
       try {
         const token = localStorage.getItem("token");
         const headers: Record<string, string> = {
@@ -423,6 +425,7 @@ export default defineComponent({
     };
 
     const toggleCurrentPartner = async (partnerId: string) => {
+      if (!hasEditPerms.value) return;
       try {
         const token = localStorage.getItem("token");
         const headers: Record<string, string> = {
@@ -569,6 +572,7 @@ export default defineComponent({
     };
 
     const removeConnection = async (relatedId: string) => {
+      if (!hasEditPerms.value) return;
       try {
         const token = localStorage.getItem("token");
         const headers: Record<string, string> = {
