@@ -46,26 +46,27 @@ export default defineComponent({
 
 <style lang="stylus">
 .sidebar
-  width 80px
-  height 75%
-  background-color #f0f0f0
-  display flex
+  display inline-flex
   flex-direction column
-  justify-content flex-start
+  justify-content center  /* Centers items vertically */
   align-items center
   padding 10px
+  background-color #f0f0f0
   border 3px solid #ccc
   box-shadow 0 0 10px rgba(0, 0, 0, 0.1)
   position fixed
-  top 150px
+  top 50%  /* Center the sidebar vertically */
   left 20px
   z-index 1000
+  transform translateY(-50%)  /* Adjust to perfectly center it */
+  width auto
+  height auto
 
 .sidebar-item
   width 100%
   height 50px
   background-color #f0f0f0
-  margin-bottom 10px
+  margin-bottom 20px  /* Increase the spacing between items */
   display flex
   justify-content center
   align-items center
