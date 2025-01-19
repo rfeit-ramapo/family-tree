@@ -17,7 +17,7 @@ WITH p, t,
 
 // Also match all other tree members
 OPTIONAL MATCH (t)-[:CONTAINS]->(treeMember:Person)
-WHERE treeMember.id <> p.id AND NOT treeMember IN relatives
+WHERE treeMember.id <> p.id AND NOT treeMember IN relatives ANT NOT treeMember IN partnerChildren
 
 RETURN
     partnerChildren AS firstSuggestions,

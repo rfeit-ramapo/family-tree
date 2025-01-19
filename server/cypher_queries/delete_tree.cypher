@@ -1,2 +1,3 @@
 MATCH (t:Tree {id: $id})
-DETACH DELETE t
+OPTIONAL MATCH (t)-[:CONTAINS]->(p:Person)
+DETACH DELETE t, p

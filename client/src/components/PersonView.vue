@@ -197,13 +197,6 @@ import ImageUpload from "./ImageUpload.vue";
 import AutoSuggestion from "./AutoSuggestion.vue";
 import { SuggestionType } from "@/helpers/sharedTypes";
 
-// Add type for date structure
-interface DateStructure {
-  year: number;
-  month: number;
-  day: number;
-}
-
 export default defineComponent({
   name: "PersonView",
   props: {

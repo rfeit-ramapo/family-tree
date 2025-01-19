@@ -10,7 +10,6 @@
     li.context-menu-item(v-if="showEditOption()" @click="emitEvent(ContextMenuEvent.EDIT, $event)") Edit
     li.context-menu-item(v-if="showDeleteOption()" @click="emitEvent(ContextMenuEvent.DELETE, $event)") Delete
     li.context-menu-item(v-if="showAddNodeOption()" @click="emitEvent(ContextMenuEvent.ADD_NODE, $event)") Create Node
-    li.context-menu-item(v-if="showConnectOption()" @click="emitEvent(ContextMenuEvent.CONNECT, $event)") Connect
 </template>
 
 <script lang="ts">
@@ -45,18 +44,12 @@ export default defineComponent({
 
     const showViewOption = () => {
       if (props.hasEditPerms) return false;
-      return (
-        props.contextMenuType === ContextMenuType.NODE ||
-        props.contextMenuType === ContextMenuType.PARTNER_REL
-      );
+      return props.contextMenuType === ContextMenuType.NODE;
     };
 
     const showEditOption = () => {
       if (!props.hasEditPerms) return false;
-      return (
-        props.contextMenuType === ContextMenuType.NODE ||
-        props.contextMenuType === ContextMenuType.PARTNER_REL
-      );
+      return props.contextMenuType === ContextMenuType.NODE;
     };
 
     const showDeleteOption = () => {
@@ -74,11 +67,6 @@ export default defineComponent({
       return props.contextMenuType === ContextMenuType.CANVAS;
     };
 
-    const showConnectOption = () => {
-      if (!props.hasEditPerms) return false;
-      return props.contextMenuType === ContextMenuType.NODE;
-    };
-
     const emitEvent = (eventType: ContextMenuEvent, event: MouseEvent) => {
       emit(eventType, event);
     };
@@ -89,7 +77,6 @@ export default defineComponent({
         showEditOption() ||
         showDeleteOption() ||
         showAddNodeOption() ||
-        showConnectOption() ||
         showViewOption()
       );
     });
@@ -100,7 +87,6 @@ export default defineComponent({
       showEditOption,
       showDeleteOption,
       showAddNodeOption,
-      showConnectOption,
       hasMenuItems,
       emitEvent,
       ContextMenuEvent,

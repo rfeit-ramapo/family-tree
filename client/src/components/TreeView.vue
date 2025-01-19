@@ -32,10 +32,9 @@
         :contextMenuPosition="contextMenuPosition"
         :editPerms="hasEditPerms"
         @edit="editItem"
-        @delete=""
-        @connect=""
+        @delete="deleteItem"
         @add-node="createNode"
-        @view=""
+        @view="editItem"
       )
     SideBar(@toolChange="changeTool")
 </template>
@@ -537,11 +536,75 @@ export default defineComponent({
 
     const showPersonModal = ref(false);
     const editItem = () => {
-      console.log("editing item");
       // If the item is a node, show the Person View
       if (selectedItem.value instanceof DrawableNode) {
         showPersonModal.value = true;
       }
+    };
+
+    const deleteItem = async () => {
+      if (!selectedItem.value) return;
+      if (selectedItem.value instanceof DrawableNode) {
+        const nodeId = selectedItem.value.id;
+
+        try {
+          const token = localStorage.getItem("token");
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+
+          if (token) {
+            headers.Authorization = `Bearer ${token}`;
+          }
+
+          const response = await fetch(`/api/person/remove/${nodeId}`, {
+            method: "POST",
+            headers,
+          });
+
+          if (!response.ok) {
+            console.error("Failed to delete node:", response.statusText);
+            return;
+          }
+        } catch (error) {
+          console.error("Error deleting node:", error);
+        }
+      } else if (selectedItem.value instanceof DrawableRelationship) {
+        const originIds = selectedItem.value.relationship.fromNodes;
+        const targetId = selectedItem.value.relationship.toNode;
+
+        for (const originId of originIds) {
+          try {
+            const token = localStorage.getItem("token");
+            const headers: Record<string, string> = {
+              "Content-Type": "application/json",
+            };
+
+            if (token) {
+              headers.Authorization = `Bearer ${token}`;
+            }
+
+            const response = await fetch(
+              `/api/connection/remove/${originId}/${targetId}/`,
+              {
+                method: "POST",
+                headers,
+              }
+            );
+
+            if (!response.ok) {
+              console.error(
+                "Failed to delete relationship:",
+                response.statusText
+              );
+              return;
+            }
+          } catch (error) {
+            console.error("Error deleting relationship:", error);
+          }
+        }
+      }
+      reloadTree();
     };
 
     const changePicture = (newImageUrl: string) => {
@@ -587,6 +650,7 @@ export default defineComponent({
       changePicture,
       changeName,
       editItem,
+      deleteItem,
       selectedItem,
       showPersonModal,
       tree,
