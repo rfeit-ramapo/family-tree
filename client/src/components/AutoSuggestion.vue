@@ -1,4 +1,9 @@
+/** * This component creates an input box that suggests possible connections
+based on the user's input. The user can only select from available suggestions
+to avoid creating invalid connections. */
+
 <template lang="pug">
+  // Input box that the user can type in
   li#item-input(
     :contentEditable="true",
     @input="filterSuggestions",
@@ -7,6 +12,8 @@
     @keydown.tab="moveToNextSuggestion"
     @keydown.esc="cancel"
   )
+
+  // Suggestion box appears below input and populates with filtered suggestions
   ul.suggestion-box(
     v-if="suggestions.length > 0"
   )
@@ -26,10 +33,12 @@ import type { TreeMember } from "@/helpers/treeToNodes";
 export default defineComponent({
   name: "AutoSuggestion",
   props: {
+    // The ID of the originator of the connection
     originId: {
       type: String,
       required: true,
     },
+    // The type of suggestion; can be "child", "parent", or "partner"
     suggestionType: {
       type: Number as PropType<number>,
       required: true,
@@ -38,18 +47,43 @@ export default defineComponent({
   emits: ["close"],
 
   setup(props, { emit }) {
+    // Initialize ref variables
+
+    // Initial suggestions that should be displayed first
     const firstSuggestions: Ref<TreeMember[]> = ref([]);
+    // Other options that can be displayed after the initial suggestions
     const otherSuggestions: Ref<TreeMember[]> = ref([]);
+    // The combined list of suggestions
     const suggestions: Ref<TreeMember[]> = ref([]);
+    // The index of the active suggestion
     const activeIndex = ref(-1);
 
+    /*
+    NAME
+      selectSuggestion - Uses the selected index to connect the person
+
+    SYNOPSIS
+      (index: number) => Promise<void>
+          index   --> the index of the selected suggestion
+
+    DESCRIPTION
+      This function is called when the user selects a suggestion from the
+      suggestion box. It connects the selected person to the origin person
+      based on the suggestion type.
+
+    RETURNS
+      A Promise<void> that resolves when the person is successfully connected.
+    */
     const selectSuggestion = async (index: number) => {
       if (index === -1) return;
+
+      // Get the selected suggestion
       const allSuggestions = firstSuggestions.value.concat(
         otherSuggestions.value
       );
       const selected = allSuggestions[index];
 
+      // Determine which API endpoint to use based on the suggestion type
       let apiString = `api/connect/${props.originId}/${selected.id}`;
       if (props.suggestionType === SuggestionType.CHILD) {
         apiString += "/child";
@@ -59,6 +93,7 @@ export default defineComponent({
         apiString += "/partner";
       }
 
+      // Access the API
       try {
         const token = localStorage.getItem("token");
         const headers: Record<string, string> = {
@@ -68,12 +103,11 @@ export default defineComponent({
           headers["Authorization"] = `Bearer ${token}`;
         }
 
-        // Fetch person data from server
+        // Fetch response from the server
         const response = await fetch(apiString, {
           method: "POST",
           headers,
         });
-
         if (!response.ok) {
           if (response.status === 403) {
             throw new Error("You do not have permission to edit this person.");
@@ -82,26 +116,61 @@ export default defineComponent({
           }
         }
         console.log("Successfully connected person");
+        // Close the suggestion box
         emit("close", "success");
       } catch (error) {
         console.error("Error fetching suggestions:", error);
         emit("close", error);
       }
     };
+    /* selectSuggestion */
 
+    /*
+    NAME
+      moveToNextSuggestion - Moves to the next suggestion in the list
+
+    SYNOPSIS
+      (event: Event) => void
+          event   --> the event that triggered the function
+
+    DESCRIPTION
+      This function is called when the user presses the Tab key. It moves the
+      active suggestion to the next one in the list. If the last suggestion is
+      active, it loops back to the first suggestion.
+    */
     const moveToNextSuggestion = (event: Event) => {
-      event.preventDefault(); // Prevent default Tab behavior
+      // Prevent default tab behavior
+      event.preventDefault();
 
       // Logic to move to the next suggestion
       if (activeIndex.value < suggestions.value.length - 1) {
         activeIndex.value++;
       } else {
-        activeIndex.value = 0; // Loop back to the first suggestion
+        // Loop back to the first suggestion
+        activeIndex.value = 0;
       }
     };
+    /* moveToNextSuggestion */
 
+    /*
+    NAME
+      formatSuggestion - Formats the suggestion for display
+    
+    SYNOPSIS
+      (suggestion: TreeMember) => string
+          suggestion   --> the suggestion to format
+
+    DESCRIPTION
+      This function takes a suggestion and formats it into a string that
+      includes the person's name and date of birth (if available).
+      
+    RETURNS
+      A string that represents the suggestion in a readable format.
+    */
     const formatSuggestion = (suggestion: TreeMember) => {
       let sugString = "Unnamed Person";
+
+      // Replace default suggestion string with person's name if it exists
       if (
         suggestion.firstName ||
         suggestion.lastName ||
@@ -109,6 +178,8 @@ export default defineComponent({
       ) {
         sugString = `${suggestion.firstName ?? ""} ${suggestion.middleName ?? ""} ${suggestion.lastName ?? ""}`;
       }
+
+      // Append the date of birth if it is given to differentiate between people with the same name
       if (suggestion.dateOfBirth) {
         const year = (suggestion.dateOfBirth as any).year;
         const month = String((suggestion.dateOfBirth as any).month).padStart(
@@ -123,7 +194,23 @@ export default defineComponent({
       }
       return sugString;
     };
+    /* formatSuggestion */
 
+    /*
+    NAME
+      filterSuggestions - Filters the suggestions based on the input
+
+    SYNOPSIS
+      () => void
+
+    DESCRIPTION
+      This function filters the suggestions based on the user's input. It
+      compares the input to the formatted suggestions and updates the list
+      of suggestions accordingly.
+
+    RETURNS
+      void
+    */
     const filterSuggestions = () => {
       // Filter suggestions based on the input
       const input = document.getElementById("item-input") as HTMLElement;
@@ -131,6 +218,7 @@ export default defineComponent({
         return;
       }
 
+      // Filter both lists separately to maintain order before combining them
       const filteredFirst = firstSuggestions.value.filter((suggestion) =>
         formatSuggestion(suggestion)
           .toLowerCase()
@@ -141,12 +229,30 @@ export default defineComponent({
           .toLowerCase()
           .includes(input.innerText.toLowerCase())
       );
-
       suggestions.value = filteredFirst.concat(filteredOther);
+
+      // Set the active index. If there are suggestions, set it to the first one
       if (suggestions.value.length) activeIndex.value = 0;
+      // Otherwise, set it to -1 to indicate no active suggestion
       else activeIndex.value = -1;
     };
+    /* filterSuggestions */
 
+    /*
+    NAME
+      fetchSuggestions - Fetches suggestions from the server
+    
+    SYNOPSIS
+      () => Promise<void>
+
+    DESCRIPTION
+      This function fetches suggestions from the server based on the originId
+      and suggestionType. It populates the firstSuggestions and otherSuggestions
+      lists with the fetched data.
+    
+    RETURNS
+      A Promise<void> that resolves when the suggestions are successfully fetched.
+    */
     const fetchSuggestions = async () => {
       // Fetch suggestions based on the originId and suggestionType
       let apiString = `api/suggestions/${props.originId}`;
@@ -158,8 +264,8 @@ export default defineComponent({
         apiString += "/partners";
       }
 
+      // Fetch from the server
       try {
-        // Fetch suggestions
         const token = localStorage.getItem("token");
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
@@ -168,12 +274,11 @@ export default defineComponent({
           headers["Authorization"] = `Bearer ${token}`;
         }
 
-        // Fetch person data from server
+        // Ensure response was ok
         const response = await fetch(apiString, {
           method: "GET",
           headers,
         });
-
         if (!response.ok) {
           console.log("message", (await response.json()).message);
           if (response.status === 403) {
@@ -182,6 +287,8 @@ export default defineComponent({
             throw new Error("Failed to fetch person");
           }
         }
+
+        // Populate the suggestions lists with the fetched data
         const initialSuggestions = await response.json();
         firstSuggestions.value = initialSuggestions.firstSuggestions;
         otherSuggestions.value = initialSuggestions.otherSuggestions;
@@ -191,12 +298,14 @@ export default defineComponent({
         emit("close", error);
       }
     };
+    /* fetchSuggestions */
 
+    // Cancel the suggestion box and emit to the parent component
     const cancel = () => {
-      // Cancel the suggestion box
       emit("close", "cancel");
     };
 
+    // Run when the component is mounted
     onMounted(() => {
       // Exit if clicked outside of the suggestion box
       document.addEventListener("click", (event) => {
@@ -210,6 +319,7 @@ export default defineComponent({
       const input = document.getElementById("item-input") as HTMLElement;
       input.focus();
 
+      // Fetch suggestions from the server
       fetchSuggestions();
     });
 
@@ -228,8 +338,8 @@ export default defineComponent({
 
 <style lang="stylus" scoped>
 .suggestion-box
-  position relative // Use relative positioning to remain in the flow
-  width 100% // Match the width of the input
+  position relative
+  width 100%
   max-height 150px
   overflow-y auto
   background-color #ffffff
@@ -239,7 +349,7 @@ export default defineComponent({
   z-index 10
   padding 4px 0
   list-style none
-  margin 4px 0 0 // Add spacing from the input box
+  margin 4px 0 0
 
 .suggestion-box li
   padding 8px 12px

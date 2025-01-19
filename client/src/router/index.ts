@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
-import HomePage from "../components/HomePage.vue"; // Create this component
+import HomePage from "../components/HomePage.vue";
 import LoginView from "../components/LoginView.vue";
 import TreesView from "@/components/TreesView.vue";
 import TreeView from "@/components/TreeView.vue";

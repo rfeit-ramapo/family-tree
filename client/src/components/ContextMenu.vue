@@ -1,5 +1,8 @@
-<template lang="pug">
+/** * This component handles the context menu overrides for the tree, nodes, and
+relationships. It displays custom context menu items based on the context menu
+type and the user's permissions. */
 
+<template lang="pug">
 .tree-context-menu(
   v-if="contextMenuVisible && hasMenuItems", 
   :style="{ top: `${contextMenuPosition.y}px`, left: `${contextMenuPosition.x}px`, position: 'absolute' }"
@@ -16,49 +19,63 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, type PropType } from "vue";
+import { computed, defineComponent, type PropType } from "vue";
 import { ContextMenuType, ContextMenuEvent } from "../helpers/sharedTypes";
 
 export default defineComponent({
   name: "ContextMenu",
   props: {
+    // The type of context menu to display
     contextMenuType: {
       type: Number as PropType<number>,
       required: true,
     },
+    // Whether the context menu is visible
     contextMenuVisible: {
       type: Boolean,
       default: false,
     },
+    // The position of the context menu
     contextMenuPosition: {
       type: Object as PropType<{ x: number; y: number }>,
       default: () => ({ x: 0, y: 0 }),
     },
+    // Whether the user has edit permissions
     hasEditPerms: {
       type: Boolean,
       default: true,
     },
+    // Whether the tree is public
     isPublic: {
       type: Boolean,
       default: false,
     },
   },
+
   setup(props, { emit }) {
+    // Determines whether to show the rename option
+    // Only shows for tree context menu
     const showRenameOption = () => {
       if (!props.hasEditPerms) return false;
       return props.contextMenuType === ContextMenuType.TREE;
     };
 
+    // Determines whether to show the view option
+    // Only shows for node context menu
     const showViewOption = () => {
       if (props.hasEditPerms) return false;
       return props.contextMenuType === ContextMenuType.NODE;
     };
 
+    // Determines whether to show the edit option
+    // Only shows for node context menu
     const showEditOption = () => {
       if (!props.hasEditPerms) return false;
       return props.contextMenuType === ContextMenuType.NODE;
     };
 
+    // Determines whether to show the delete option
+    // Shows for node, partner/parent relationship, and tree context menus
     const showDeleteOption = () => {
       if (!props.hasEditPerms) return false;
       return (
@@ -69,19 +86,25 @@ export default defineComponent({
       );
     };
 
+    // Determines whether to show the add node option
+    // Only shows for canvas context menu
     const showAddNodeOption = () => {
       if (!props.hasEditPerms) return false;
       return props.contextMenuType === ContextMenuType.CANVAS;
     };
 
+    // Determines whether to show the public option
+    // Only shows for tree context menu
     const showPublicOption = () => {
       return props.contextMenuType === ContextMenuType.TREE;
     };
 
+    // Emits a context menu event depending on what was clicked
     const emitEvent = (eventType: ContextMenuEvent, event: MouseEvent) => {
       emit(eventType, event);
     };
 
+    // Computed property that determines whether the context menu has any menu items
     const hasMenuItems = computed(() => {
       return (
         showRenameOption() ||

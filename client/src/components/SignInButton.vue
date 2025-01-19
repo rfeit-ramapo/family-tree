@@ -84,6 +84,7 @@ export default defineComponent({
       // Clear user information from local storage
       localStorage.removeItem("user");
       localStorage.removeItem("token");
+      localStorage.removeItem("userId");
 
       console.log("User signed out");
 

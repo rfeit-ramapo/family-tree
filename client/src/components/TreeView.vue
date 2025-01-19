@@ -229,6 +229,7 @@ export default defineComponent({
 
         tree.value = await response.json();
         const userId = localStorage.getItem("userId");
+        console.log("userId:", userId);
         hasEditPerms.value =
           userId && tree.value
             ? tree.value.metadata.editors.includes(userId) ||
