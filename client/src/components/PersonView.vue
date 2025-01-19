@@ -221,6 +221,7 @@ export default defineComponent({
     const showAddChild = ref(false);
     const showAddParent = ref(false);
     const showAddPartner = ref(false);
+    const blurredOnKey = ref(false);
 
     const typeableFields: readonly string[] = [
       "firstName",
@@ -465,7 +466,6 @@ export default defineComponent({
       const target = event.target as HTMLElement;
       if (target.classList.contains("unset")) {
         target.innerText = "";
-        target.classList.remove("unset");
       } else {
         // Highlight inner text
         const range = document.createRange();
@@ -480,37 +480,61 @@ export default defineComponent({
     };
 
     const textBlur = (event: Event) => {
+      if (blurredOnKey.value) {
+        blurredOnKey.value = false;
+        return;
+      }
       genderSuggestions.value = [];
       const target = event.target as HTMLElement;
       const key = target.id as (typeof typeableFields)[number];
 
-      if (target.innerText) {
-        if (typeableFields.includes(key)) {
-          (personDetails.value!.person[key as keyof TreeMember] as string) =
-            target.innerText;
-        }
-      } else {
-        (personDetails.value!.person[key as keyof TreeMember] as unknown) =
-          undefined;
+      if (target.innerText !== "") {
+        (personDetails.value!.person[key as keyof TreeMember] as string) =
+          target.innerText;
+        target.classList.remove("unset");
+      } else if (!personDetails.value!.person[key as keyof TreeMember]) {
         target.innerText = "Unset";
         target.classList.add("unset");
+      }
+
+      // Deselect text
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
       }
     };
 
     const enterGenderField = (event: KeyboardEvent) => {
       selectGenderSuggestion();
+      genderSuggestions.value = [];
       enterField(event);
     };
 
     const enterField = (event: KeyboardEvent) => {
-      textBlur(event);
+      const target = event.target as HTMLElement;
+      target.blur();
     };
 
     const tabField = (event: KeyboardEvent) => {
-      if ((event.target as HTMLElement).id === "gender") {
+      const target = event.target as HTMLElement;
+      const key = target.id as (typeof typeableFields)[number];
+
+      if (target.id === "gender") {
         enterGenderField(event);
       } else {
-        enterField(event);
+        genderSuggestions.value = [];
+
+        console.log("in tab field");
+
+        if (target.innerText !== "") {
+          console.log("target inner text", target.innerText);
+          (personDetails.value!.person[key as keyof TreeMember] as string) =
+            target.innerText;
+          target.classList.remove("unset");
+        } else if (!personDetails.value!.person[key as keyof TreeMember]) {
+          target.innerText = "Unset";
+          target.classList.add("unset");
+        }
       }
 
       // Move to the next field, if there is one
@@ -525,6 +549,7 @@ export default defineComponent({
           event.preventDefault();
         }
       }
+      blurredOnKey.value = true;
     };
 
     const savePerson = async () => {
@@ -904,7 +929,7 @@ export default defineComponent({
   width 100vw
   height 100vh
   background rgba(0, 0, 0, 0.5)
-  z-index 1000
+  z-index 1010
   display flex
   justify-content center
   align-items center
