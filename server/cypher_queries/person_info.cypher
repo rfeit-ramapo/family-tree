@@ -11,7 +11,6 @@ WHERE NOT isRoot
 OPTIONAL MATCH (p)<-[:PARENT_OF]-(parent:Person)
 OPTIONAL MATCH (p)-[:PARTNER_OF {current: true}]-(currentPartner:Person)
 OPTIONAL MATCH (p)-[:PARTNER_OF]-(partner:Person)
-WHERE currentPartner IS NULL OR currentPartner.id <> partner.id
 OPTIONAL MATCH (p)-[:PARENT_OF]->(child:Person)
 
 RETURN 

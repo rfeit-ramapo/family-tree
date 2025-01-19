@@ -436,6 +436,14 @@ app.put("/api/person/:personId", async (req, res) => {
   const personDetails = req.body as PersonDetails;
   const person = personDetails.person;
 
+  // Turn the date strings into Date objects
+  person.dateOfBirth = person.dateOfBirth
+    ? new Date(person.dateOfBirth)
+    : undefined;
+  person.dateOfDeath = person.dateOfDeath
+    ? new Date(person.dateOfDeath)
+    : undefined;
+
   try {
     const oldPersonData = await DBTree.getPersonDetails(person.id);
 
@@ -535,6 +543,7 @@ app.post("/api/person", async (req, res) => {
   res.status(201).json({ message: "Person created", person: createdPerson });
 });
 
+// Get suggestions for a particular person and relationship type
 app.get("/api/suggestions/:originId/:type", async (req, res) => {
   const authResult = await authorizeRequestWithUser(req, res);
   req = authResult.req as Request<{
@@ -567,6 +576,7 @@ app.get("/api/suggestions/:originId/:type", async (req, res) => {
   }
 });
 
+// Connect two people in the tree
 app.post("/api/connect/:originId/:targetId/:type", async (req, res) => {
   const authResult = await authorizeRequestWithUser(req, res);
   req = authResult.req as Request<{
@@ -604,6 +614,82 @@ app.post("/api/connect/:originId/:targetId/:type", async (req, res) => {
   } catch (error) {
     console.error("Error fetching trees from database:", error);
     res.status(500).json({ message: "Failed to fetch trees" });
+    return;
+  }
+});
+
+// Toggle the given partner as being the current partner
+app.post(
+  "/api/connection/toggle-current-partner/:personId/:partnerId",
+  async (req, res) => {
+    const authResult = await authorizeRequestWithUser(req, res);
+    req = authResult.req as Request<{
+      personId: string;
+      partnerId: string;
+    }>;
+    res = authResult.res;
+    const userId = authResult.userId;
+
+    if (!userId) return;
+    const { personId, partnerId } = req.params;
+
+    try {
+      await DBTree.toggleCurrentPartner(personId, partnerId);
+      res.status(200).json({ message: "Current partner toggled" });
+      return;
+    } catch (error) {
+      console.error("Error toggling current partner:", error);
+      res.status(500).json({ message: "Failed to toggle current partner" });
+      return;
+    }
+  }
+);
+
+// Remove a connection between two people
+app.post("/api/connection/remove/:originId/:targetId/", async (req, res) => {
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req as Request<{
+    originId: string;
+    targetId: string;
+  }>;
+  res = authResult.res;
+  const userId = authResult.userId;
+
+  if (!userId) return;
+
+  const { originId, targetId } = req.params;
+
+  try {
+    // Fetch trees for the user from the database
+    await DBTree.removeRelation(originId, targetId);
+    res.status(200).json({ message: "Connection removed" });
+    return;
+  } catch (error) {
+    console.error("Error removing connection from database:", error);
+    res.status(500).json({ message: "Failed to delete connection" });
+    return;
+  }
+});
+
+// Remove a person from the tree
+app.post("/api/person/remove/:personId", async (req, res) => {
+  const authResult = await authorizeRequestWithUser(req, res);
+  req = authResult.req as Request<{ personId: string }>;
+  res = authResult.res;
+  const userId = authResult.userId;
+
+  if (!userId) return;
+
+  const { personId } = req.params;
+
+  try {
+    // Fetch trees for the user from the database
+    await DBTree.removePerson(personId);
+    res.status(200).json({ message: "Person removed" });
+    return;
+  } catch (error) {
+    console.error("Error removing person from the database:", error);
+    res.status(500).json({ message: "Failed to remove person" });
     return;
   }
 });

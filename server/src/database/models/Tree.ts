@@ -544,7 +544,7 @@ export class DBTree extends DBManager {
     return;
   }
 
-  static async editCurrentPartner(originId: string, targetId: string) {
+  static async toggleCurrentPartner(originId: string, targetId: string) {
     const session = this.driver.session({ database: DBManager.db_name });
 
     // Path to the cypher query file
@@ -561,8 +561,8 @@ export class DBTree extends DBManager {
     try {
       await session.executeWrite((t) =>
         t.run(query, {
-          originId,
-          targetId,
+          p1Id: originId,
+          p2Id: targetId,
         })
       );
     } finally {
@@ -592,6 +592,34 @@ export class DBTree extends DBManager {
         t.run(query, {
           originId,
           targetId,
+        })
+      );
+    } finally {
+      await session.close();
+    }
+
+    return;
+  }
+
+  static async removePerson(personId: string) {
+    const session = this.driver.session({ database: DBManager.db_name });
+
+    // Path to the cypher query file
+    const queryPath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "cypher_queries",
+      "remove_person.cypher"
+    );
+
+    const query = fs.readFileSync(queryPath, "utf-8");
+
+    try {
+      await session.executeWrite((t) =>
+        t.run(query, {
+          id: personId,
         })
       );
     } finally {

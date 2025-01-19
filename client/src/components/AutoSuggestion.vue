@@ -35,6 +35,7 @@ export default defineComponent({
       required: true,
     },
   },
+  emits: ["close"],
 
   setup(props, { emit }) {
     const firstSuggestions: Ref<TreeMember[]> = ref([]);
@@ -80,6 +81,7 @@ export default defineComponent({
             throw new Error("Failed to edit person");
           }
         }
+        console.log("Successfully connected person");
         emit("close", "success");
       } catch (error) {
         console.error("Error fetching suggestions:", error);
@@ -105,15 +107,19 @@ export default defineComponent({
         suggestion.lastName ||
         suggestion.middleName
       ) {
-        sugString = `${suggestion.firstName + " " || ""}${suggestion.middleName + " " || ""}${suggestion.lastName || ""}`;
+        sugString = `${suggestion.firstName ?? ""} ${suggestion.middleName ?? ""} ${suggestion.lastName ?? ""}`;
       }
       if (suggestion.dateOfBirth) {
-        const formattedDate = suggestion.dateOfBirth.toLocaleString("en-US", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        });
-        sugString += ` [DOB: ${formattedDate}]`;
+        const year = (suggestion.dateOfBirth as any).year;
+        const month = String((suggestion.dateOfBirth as any).month).padStart(
+          2,
+          "0"
+        );
+        const day = String((suggestion.dateOfBirth as any).day).padStart(
+          2,
+          "0"
+        );
+        sugString += ` [DOB: ${year}/${month}/${day}]`;
       }
       return sugString;
     };
@@ -218,7 +224,6 @@ export default defineComponent({
     };
   },
 });
-// keydown should handle enter as selection, tab as moving to next suggestion, esc as cancel, any other as typing
 </script>
 
 <style lang="stylus" scoped>

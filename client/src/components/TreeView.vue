@@ -10,7 +10,7 @@
       @close="showPersonModal = false"
       @changePicture="changePicture"
       @changeName="changeName"
-      @changeConnection="reloadTree"
+      @reloadTree="reloadTree"
     )
   
     .canvas-container(v-if="!errorMessage")
@@ -558,7 +558,7 @@ export default defineComponent({
       lastName: string;
     }) => {
       (selectedItem.value as DrawableNode).replaceName(
-        `${firstName} ${middleName} ${lastName}`
+        `${firstName ?? ""}${middleName ?? ""} ${lastName ?? ""}`
       );
     };
 

@@ -92,7 +92,7 @@
           input.data-value#dateOfBirthInput(
             type="date"
             :value="formatDate(dateOfBirth)"
-            @input="updateDateOfBirth"
+            @blur="updateDateOfBirth"
           )
 
         .data-row
@@ -100,7 +100,7 @@
           input.data-value#dateOfDeathInput(
             type="date"
             :value="formatDate(dateOfDeath)"
-            @input="updateDateOfDeath"
+            @blur="updateDateOfDeath"
           )
 
       .edit-buttons(v-if="hasEditPerms")
@@ -124,7 +124,7 @@
               @mouseleave="hoverRoot = false"
             )
               i(:class="`fa${isRoot ? 's' : 'r'} fa-star`")
-            span.connection-label Relation to Root:    
+            span.connection-label Relation to Root: 
             span.connection-value {{ personDetails.relationPath ?? "unrelated" }}
 
         .connection-row
@@ -133,7 +133,7 @@
             li.connection-item(v-for="partner in personDetails.partners" :key="partner.id")
               button.delete-button(@click="removeConnection(partner.id)") -
               i.partner-star(
-                :class="`fa${partner.isCurrent ? 's' : 'r'} fa-star`"
+                :class="`fa${partner.id === personDetails.currentPartner?.id ? 's' : 'r'} fa-star`"
                 @click="toggleCurrentPartner(partner.id)"
               )
               span {{ computeName(partner) }}
@@ -141,7 +141,7 @@
               v-if="showAddPartner"
               :originId="personDetails.person.id"
               :suggestionType="SuggestionType.PARTNER"
-              @close="showAddPartner = false; fetchPerson()"
+              @close="reloadPerson"
             )
           button.add-connection-btn(@click="showAddPartner = true") +
 
@@ -156,13 +156,13 @@
             li.connection-item(
               v-for="parent in personDetails.parents"
             ) 
-              button.delete-button(@click="removeConnection(partner.id)") -
+              button.delete-button(@click="removeConnection(parent.id)") -
               span {{ computeName(parent) }}
             AutoSuggestion(
               v-if="showAddParent && personDetails.parents.length < 2"
               :originId="personDetails.person.id"
               :suggestionType="SuggestionType.PARENT"
-              @close="showAddParent = false; fetchPerson()"
+              @close="reloadPerson"
             )
           button.add-connection-btn(
             v-if="personDetails.parents.length < 2"
@@ -175,13 +175,13 @@
             li.connection-item(
               v-for="child in personDetails.children"
             ) 
-              button.delete-button(@click="removeConnection(partner.id)") -
+              button.delete-button(@click="removeConnection(child.id)") -
               span {{ computeName(child) }}
             AutoSuggestion(
               v-if="showAddChild"
               :originId="personDetails.person.id"
               :suggestionType="SuggestionType.CHILD"
-              @close="showAddChild = false; fetchPerson()"
+              @close="reloadPerson"
             )
           button.add-connection-btn(@click="showAddChild = true") +
 
@@ -197,6 +197,13 @@ import ImageUpload from "./ImageUpload.vue";
 import AutoSuggestion from "./AutoSuggestion.vue";
 import { SuggestionType } from "@/helpers/sharedTypes";
 
+// Add type for date structure
+interface DateStructure {
+  year: number;
+  month: number;
+  day: number;
+}
+
 export default defineComponent({
   name: "PersonView",
   props: {
@@ -209,6 +216,7 @@ export default defineComponent({
     ImageUpload,
     AutoSuggestion,
   },
+  emits: ["changeName", "changePicture", "reloadTree", "close"],
   setup(props, { emit }) {
     const personDetails: Ref<PersonDetails | null> = ref(null);
     const hasEditPerms = ref(false);
@@ -253,6 +261,10 @@ export default defineComponent({
         }
 
         personDetails.value = await response.json();
+        console.log(
+          "person details:",
+          JSON.stringify(personDetails.value, null, 2)
+        );
         const userId = localStorage.getItem("userId");
 
         hasEditPerms.value =
@@ -260,20 +272,25 @@ export default defineComponent({
             ? personDetails.value.editors.includes(userId) ||
               personDetails.value.creator === userId
             : false;
+        if (personDetails.value) {
+          updateDateOfBirth({
+            target: {
+              value: formatDate(personDetails.value.person.dateOfBirth),
+            },
+          } as unknown as Event);
+          updateDateOfDeath({
+            target: {
+              value: formatDate(personDetails.value.person.dateOfDeath),
+            },
+          } as unknown as Event);
+        }
+        console.log("fetchedPerson");
       } catch (error) {
         console.error("Error fetching person data", error);
         errorMessage.value =
           "There was an error fetching the person data. Please try again later.";
         personDetails.value = null;
       }
-    };
-
-    const formatDate = (date: Date | null) => {
-      if (!date) return "";
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      return `${year}-${month}-${day}`;
     };
 
     const selectGenderSuggestion = (index?: number) => {
@@ -308,20 +325,69 @@ export default defineComponent({
         );
     };
 
-    const updateDateOfBirth = (event: InputEvent) => {
+    // Date handling functions
+    const formatDate = (date: any): string => {
+      if (!date) return "";
+
+      // If it's already a string in YYYY-MM-DD format, return it
+      if (typeof date === "string" && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return date;
+      }
+
+      // Handle both Date objects and the detailed structure from the backend
+      const dateObj =
+        date instanceof Date
+          ? date
+          : new Date(
+              date.year,
+              date.month - 1, // Convert 1-based month to 0-based for JS Date
+              date.day
+            );
+
+      if (isNaN(dateObj.getTime())) return "";
+
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+      const day = String(dateObj.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    const updateDateOfBirth = (event: Event) => {
       const input = event.target as HTMLInputElement;
-      const newDate = input.value ? new Date(input.value) : undefined;
       if (personDetails.value) {
-        personDetails.value.person.dateOfBirth = newDate;
+        // Create date at noon UTC to avoid timezone issues
+        personDetails.value.person.dateOfBirth = input.value
+          ? new Date(input.value + "T12:00:00Z")
+          : undefined;
       }
     };
 
-    const updateDateOfDeath = (event: InputEvent) => {
+    const updateDateOfDeath = (event: Event) => {
       const input = event.target as HTMLInputElement;
-      const newDate = input.value ? new Date(input.value) : undefined;
       if (personDetails.value) {
-        personDetails.value.person.dateOfDeath = newDate;
+        // Create date at noon UTC to avoid timezone issues
+        personDetails.value.person.dateOfDeath = input.value
+          ? new Date(input.value + "T12:00:00Z")
+          : undefined;
       }
+    };
+
+    const validateDates = (): boolean => {
+      if (!personDetails.value) return true;
+
+      const birth = personDetails.value.person.dateOfBirth;
+      const death = personDetails.value.person.dateOfDeath;
+
+      if (!birth || !death) return true;
+
+      const birthDate = new Date(birth);
+      const deathDate = new Date(death);
+
+      return (
+        !isNaN(birthDate.getTime()) &&
+        !isNaN(deathDate.getTime()) &&
+        birthDate <= deathDate
+      );
     };
 
     const updateImage = (newImageUrl: string) => {
@@ -360,6 +426,42 @@ export default defineComponent({
         console.error("Error updating root status", error);
         errorMessage.value =
           "There was an error updating the root status. Please try again later.";
+      }
+    };
+
+    const toggleCurrentPartner = async (partnerId: string) => {
+      try {
+        const token = localStorage.getItem("token");
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        // Fetch person data from server
+        const response = await fetch(
+          `/api/connection/toggle-current-partner/${props.personId}/${partnerId}`,
+          {
+            headers,
+            method: "POST",
+          }
+        );
+
+        if (!response.ok) {
+          if (response.status === 403) {
+            throw new Error("You do not have permission to edit this person.");
+          } else {
+            throw new Error("Failed to edit person");
+          }
+        }
+
+        await response.json();
+        fetchPerson();
+        emit("reloadTree");
+      } catch (error) {
+        console.error("Error updating person", error);
       }
     };
 
@@ -431,6 +533,11 @@ export default defineComponent({
 
     const savePerson = async () => {
       try {
+        if (!validateDates()) {
+          errorMessage.value = "Date of death cannot be before date of birth";
+          return;
+        }
+
         const token = localStorage.getItem("token");
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
@@ -451,14 +558,10 @@ export default defineComponent({
         }
 
         await fetchPerson();
-
-        // Show success message
         showSuccessMessage.value = true;
-
-        // Hide the message after a few seconds
         setTimeout(() => {
           showSuccessMessage.value = false;
-        }, 3000); // 3 seconds
+        }, 3000);
 
         emit("changeName", {
           firstName: firstName.value,
@@ -472,12 +575,51 @@ export default defineComponent({
       }
     };
 
-    const closeBox = () => {
-      emit("close");
+    const removeConnection = async (relatedId: string) => {
+      try {
+        const token = localStorage.getItem("token");
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(
+          `/api/connection/remove/${props.personId}/${relatedId}`,
+          {
+            method: "POST",
+            headers,
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to remove connection");
+        }
+
+        await fetchPerson();
+        emit("reloadTree");
+      } catch (error) {
+        console.error("Error removing connection", error);
+        errorMessage.value =
+          "There was an error removing the connection. Please try again later.";
+      }
     };
 
-    const addPartner = () => {
-      // Fetch the possible partners
+    const reloadPerson = async () => {
+      const delay = (ms: number) =>
+        new Promise((resolve) => setTimeout(resolve, ms));
+      await delay(100);
+      showAddChild.value = false;
+      showAddParent.value = false;
+      showAddPartner.value = false;
+      await fetchPerson();
+      emit("reloadTree");
+    };
+
+    const closeBox = () => {
+      emit("close");
     };
 
     const computeName = (person: TreeMember) => {
@@ -489,6 +631,7 @@ export default defineComponent({
       return `Unnamed Person`;
     };
 
+    // Computed properties
     const firstName = computed(() => personDetails.value?.person.firstName);
     const middleName = computed(() => personDetails.value?.person.middleName);
     const lastName = computed(() => personDetails.value?.person.lastName);
@@ -511,8 +654,8 @@ export default defineComponent({
       showAddChild,
       showAddParent,
       showAddPartner,
+      reloadPerson,
       SuggestionType,
-      addPartner,
       computeName,
       closeBox,
       fetchPerson,
@@ -545,6 +688,8 @@ export default defineComponent({
       updateDateOfDeath,
       updateImage,
       showSuccessMessage,
+      toggleCurrentPartner,
+      removeConnection,
     };
   },
 });
