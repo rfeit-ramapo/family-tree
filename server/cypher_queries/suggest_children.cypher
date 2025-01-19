@@ -2,9 +2,9 @@ MATCH (p:Person {id: $id})<-[:CONTAINS]-(t:Tree)
 
 // Match children of partners
 OPTIONAL MATCH (p)-[:PARTNER_OF]-(partner:Person)
-OPTIONAL MATCH (partner)-[:PARENT_OF]->(partnerChild:Person)
 OPTIONAL MATCH (p)-[:PARENT_OF]->(currentChild:Person)
-WHERE currentChild.id <> partnerChild.id
+OPTIONAL MATCH (partner)-[:PARENT_OF]->(partnerChild:Person)
+WHERE partnerChild.id <> currentChild.id
 
 // Match all direct relatives to avoid suggesting them
 OPTIONAL MATCH (p)<-[:PARENT_OF]-(parent:Person)-[:PARENT_OF]->(sibling:Person)
@@ -17,7 +17,7 @@ WITH p, t,
 
 // Also match all other tree members
 OPTIONAL MATCH (t)-[:CONTAINS]->(treeMember:Person)
-WHERE treeMember.id <> p.id AND NOT treeMember IN relatives ANT NOT treeMember IN partnerChildren
+WHERE treeMember.id <> p.id AND NOT treeMember IN relatives AND NOT treeMember IN partnerChildren
 
 RETURN
     partnerChildren AS firstSuggestions,

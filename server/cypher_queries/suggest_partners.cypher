@@ -5,7 +5,7 @@ OPTIONAL MATCH (p)-[:PARENT_OF]->(child:Person)
 OPTIONAL MATCH (existingPartner:Person)-[:PARTNER_OF]-(p)
 WITH p, t, child, COLLECT(DISTINCT existingPartner) AS existingPartners
 OPTIONAL MATCH (childParent:Person)-[:PARENT_OF]->(child)
-WHERE childParent NOT IN existingPartners
+WHERE NOT childParent IN existingPartners AND childParent.id <> p.id
 
 // Match all direct relatives to avoid suggesting them
 OPTIONAL MATCH (p)<-[:PARENT_OF]-(parent:Person)-[:PARENT_OF]->(sibling:Person)
@@ -23,3 +23,4 @@ WHERE treeMember.id <> p.id AND NOT treeMember IN relatives
 RETURN
     childParents AS firstSuggestions,
     COLLECT(DISTINCT treeMember) AS otherSuggestions
+LIMIT 1

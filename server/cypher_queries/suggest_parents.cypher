@@ -8,14 +8,15 @@ WITH p, t, currentParent,
     COLLECT(DISTINCT siblingParent) AS siblingParents, 
     COLLECT(DISTINCT sibling) AS siblings
 OPTIONAL MATCH (currentParent)-[:PARTNER_OF]-(partnerOfParent:Person)
-WHERE partnerOfParent NOT IN siblingParents
+WHERE NOT partnerOfParent IN siblingParents
 
 // Match all direct relatives to avoid suggesting them
 OPTIONAL MATCH (p)-[:PARENT_OF|PARTNER_OF]-(relative:Person)
 
-WITH p, t, siblingParents, 
+WITH p, t, siblingParents, siblings,
     COLLECT(DISTINCT partnerOfParent) AS partnersOfParent, 
-    siblings + COLLECT(DISTINCT relative) AS relatives
+    COLLECT(DISTINCT relative) AS relatives
+WITH p, t, siblingParents, siblings + relatives AS relatives, partnersOfParent
 
 // Also match all other tree members
 OPTIONAL MATCH (t)-[:CONTAINS]->(treeMember:Person)

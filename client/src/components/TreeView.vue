@@ -101,6 +101,7 @@ export default defineComponent({
     const hasEditPerms = ref(false);
     const contextMenuType = ref<ContextMenuType>(ContextMenuType.CANVAS);
     const showJumpModal = ref(false);
+    const currentFocalPoint: Ref<string | null> = ref(null);
 
     const calcOriginalCoords = (event: MouseEvent): Position => {
       const rect = canvas.value.getBoundingClientRect(); // Get canvas bounds
@@ -593,8 +594,10 @@ export default defineComponent({
           console.error("Error deleting node:", error);
         }
       } else if (selectedItem.value instanceof DrawableRelationship) {
-        const originIds = selectedItem.value.relationship.fromNodes;
-        const targetId = selectedItem.value.relationship.toNode;
+        const originIds = selectedItem.value.relationship.fromNodes.map(
+          (node) => node.id
+        );
+        const targetId = selectedItem.value.relationship.toNode.id;
 
         for (const originId of originIds) {
           try {
@@ -649,6 +652,10 @@ export default defineComponent({
     };
 
     const reloadTree = async (focalId?: string) => {
+      console.log("reloading tree with focalId:", focalId);
+
+      if (focalId) currentFocalPoint.value = focalId;
+      console.log("current focal point:", currentFocalPoint.value);
       // Switch to pan tool if on jump tool
       if (selectedTool.value === Tool.JUMP_TO) {
         changeTool(Tool.PAN);
@@ -656,7 +663,7 @@ export default defineComponent({
 
       // Reload canvas values
       setupCanvas();
-      await fetchTreeMetadata(focalId);
+      await fetchTreeMetadata(currentFocalPoint.value ?? undefined);
       setupObjects();
     };
 

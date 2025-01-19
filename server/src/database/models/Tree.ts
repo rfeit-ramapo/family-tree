@@ -578,6 +578,7 @@ export class DBTree extends DBManager {
   }
 
   static async removeRelation(originId: string, targetId: string) {
+    console.log("Removing relation between ", originId, " and ", targetId);
     const session = this.driver.session({ database: DBManager.db_name });
 
     // Path to the cypher query file
@@ -624,7 +625,7 @@ export class DBTree extends DBManager {
     try {
       await session.executeWrite((t) =>
         t.run(query, {
-          id: personId,
+          personId,
         })
       );
     } finally {
