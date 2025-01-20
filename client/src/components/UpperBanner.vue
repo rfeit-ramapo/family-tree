@@ -1,24 +1,27 @@
+/** Displays a green strip at the top of the page with a sign-in button on the
+right. */
+
 <template lang="pug">
-    .upper-banner
-      .banner-button
-        SignInButton
-    .page-content
-  </template>
+  .upper-banner
+    .banner-button
+      SignInButton
+  .page-content
+</template>
 
 <script lang="ts">
-import SignInButton from "./SignInButton.vue"; // Import the button component
+import SignInButton from "./SignInButton.vue";
 
 export default {
   name: "UpperBanner",
   components: {
-    SignInButton, // Register the button component
+    SignInButton,
   },
 };
 </script>
 
 <style lang="stylus" scoped>
 .upper-banner
-  background-color #2e8b57  // Dark green
+  background-color #2e8b57
   color white
   display flex
   align-items center

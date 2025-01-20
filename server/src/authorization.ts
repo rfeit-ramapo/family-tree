@@ -1,11 +1,27 @@
+/**
+ * File providing authorization logic for the server.
+ */
+
 import { Request, Response } from "express";
 import { OAuth2Client } from "google-auth-library";
 
 const authClient = new OAuth2Client(process.env.AUTH_CLIENT || "my_client_id");
 
-// Authorize a request with a user token
-// If the token is valid, fill the userId field
-// Otherwise, return a 401 response
+/**
+ * NAME: authorizeRequestWithUser
+ *
+ * SYNOPSIS: async authorizeRequestWithUser(req: Request, res: Response): Promise<{ userId?: string, res: Response, req: Request }>
+ *    req  --> The HTTP request object.
+ *    res  --> The HTTP response object.
+ *
+ * DESCRIPTION
+ * This function authorizes a request by validating the user token provided in the Authorization header.
+ * If the token is valid, it fills the userId field with the user's unique Google ID.
+ * If the token is missing or invalid, it returns a 401 Unauthorized response.
+ *
+ * RETURNS
+ * A promise that resolves to an object containing the userId (if the token is valid), the response object, and the request object.
+ */
 export const authorizeRequestWithUser = async (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
   let userId;
@@ -50,9 +66,21 @@ export const authorizeRequestWithUser = async (req: Request, res: Response) => {
   };
 };
 
-// Authorize a request with an optional token
-// If the token is present, fill the userId field
-// Otherwise, userId will be null
+/**
+ * NAME: authorizeOptionalRequest
+ *
+ * SYNOPSIS: async authorizeOptionalRequest(req: Request, res: Response): Promise<{ userId: string | null, res: Response, req: Request }>
+ *    req  --> The HTTP request object.
+ *    res  --> The HTTP response object.
+ *
+ * DESCRIPTION
+ * This function optionally authorizes a request by validating the user token provided in the Authorization header.
+ * If the token is present and valid, it fills the userId field with the user's unique Google ID.
+ * If the token is missing or invalid, the userId field will be null.
+ *
+ * RETURNS
+ * A promise that resolves to an object containing the userId (if the token is valid or null if not), the response object, and the request object.
+ */
 export const authorizeOptionalRequest = async (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
   let userId: string | null = null;

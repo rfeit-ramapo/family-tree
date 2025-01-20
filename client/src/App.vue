@@ -1,8 +1,9 @@
-// client/src/App.vue
+/** Main App component that will be rendered on the client side. */
 
 <script setup lang="ts">
 import { onMounted } from "vue";
 
+// Load Google Sign-In script
 onMounted(() => {
   const script = document.createElement("script");
   script.src = "https://accounts.google.com/gsi/client";

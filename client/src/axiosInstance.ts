@@ -1,3 +1,7 @@
+/**
+ * Axios instance for making requests to the server
+ */
+
 import axios from "axios";
 
 const baseURL = __API_PATH__;

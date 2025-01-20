@@ -1,20 +1,96 @@
+/** Handles input for options related to the tree. Displays a modal with an
+optional input field that allows values to be entered. The modal can be
+confirmed or cancelled, and the events are emitted to the parent component. */
+
 <template lang="pug">
-    .modal-overlay(v-if="isModalVisible" @click.self="onCancel")
-      .modal-box
-        h3 {{ title }}
-        input(
-          v-if="isInputVisible"
-          v-model="inputValue"
-          type="text"
-          :placeholder="inputPlaceholder"
-          @keyup.enter="onConfirm"
-          @keyup.escape="onCancel"
-          ref="inputField"
-        )
-        .modal-buttons
-          button.modal-buttons(@click="onCancel") Cancel
-          button.modal-buttons(@click="onConfirm") Confirm
+  .modal-overlay(v-if="isModalVisible" @click.self="onCancel")
+    .modal-box
+      h3 {{ title }}
+      input(
+        v-if="isInputVisible"
+        v-model="inputValue"
+        type="text"
+        :placeholder="inputPlaceholder"
+        @keyup.enter="onConfirm"
+        @keyup.escape="onCancel"
+        ref="inputField"
+      )
+      .modal-buttons
+        button.modal-buttons(@click="onCancel") Cancel
+        button.modal-buttons(@click="onConfirm") Confirm
 </template>
+
+<script lang="ts">
+import { ref, defineComponent, watch, nextTick } from "vue";
+
+export default defineComponent({
+  name: "InputModal",
+  props: {
+    // Title of the modal
+    title: {
+      type: String,
+      default: "Modal Title",
+    },
+    // Whether the input field is visible
+    isInputVisible: {
+      type: Boolean,
+      default: false,
+    },
+    // Whether the modal is visible
+    isModalVisible: {
+      type: Boolean,
+      default: false,
+    },
+    // Placeholder text for the input field
+    inputPlaceholder: {
+      type: String,
+      default: "Enter a value",
+    },
+  },
+
+  setup(props, { emit }) {
+    // Reactive variables
+
+    // The value of the input field
+    const inputValue = ref("");
+    // Reference to the input field element
+    const inputField = ref<HTMLInputElement | null>(null);
+
+    // Watch for changes to modal visibility
+    watch(
+      () => props.isModalVisible,
+      async (newVal) => {
+        if (newVal && props.isInputVisible) {
+          // Wait for DOM to update before focusing the input field
+          await nextTick();
+          inputField.value?.focus();
+        }
+      },
+      // Run immediately on mount
+      { immediate: true }
+    );
+
+    // Confirm the action and reset the input field
+    const onConfirm = () => {
+      emit("confirm-action", inputValue.value);
+      inputValue.value = "";
+    };
+
+    // Cancel the action and reset the input field
+    const onCancel = () => {
+      inputValue.value = "";
+      emit("cancel-action");
+    };
+
+    return {
+      inputValue,
+      inputField,
+      onConfirm,
+      onCancel,
+    };
+  },
+});
+</script>
 
 <style lang="stylus" scoped>
 .modal-overlay
@@ -76,64 +152,3 @@
       &:hover
         background-color #247a48
 </style>
-
-<script lang="ts">
-import { ref, defineComponent, watch, nextTick } from "vue";
-
-export default defineComponent({
-  name: "InputModal",
-  props: {
-    title: {
-      type: String,
-      default: "Modal Title",
-    },
-    isInputVisible: {
-      type: Boolean,
-      default: false,
-    },
-    isModalVisible: {
-      type: Boolean,
-      default: false,
-    },
-    inputPlaceholder: {
-      type: String,
-      default: "Enter a value",
-    },
-  },
-  setup(props, { emit }) {
-    const inputValue = ref("");
-    const inputField = ref<HTMLInputElement | null>(null);
-
-    watch(
-      () => props.isModalVisible,
-      async (newVal) => {
-        if (newVal && props.isInputVisible) {
-          // Wait for DOM to update
-          await nextTick();
-          // Focus the input
-          inputField.value?.focus();
-        }
-      },
-      { immediate: true } // This will run the watcher immediately when component is mounted
-    );
-
-    const onConfirm = () => {
-      console.log(`Updating input value ${inputValue.value}`);
-      emit("confirm-action", inputValue.value);
-      inputValue.value = "";
-    };
-
-    const onCancel = () => {
-      inputValue.value = "";
-      emit("cancel-action");
-    };
-
-    return {
-      inputValue,
-      inputField, // Added this line to expose the ref
-      onConfirm,
-      onCancel,
-    };
-  },
-});
-</script>

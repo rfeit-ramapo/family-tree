@@ -1,3 +1,6 @@
+/** Displays a user's owned trees and allows them to create, rename, and delete
+trees. */
+
 <template lang="pug">
   UpperBanner
     // If there is an error fetching trees, show an error message
@@ -37,11 +40,9 @@
   )
 
   .tree-grid
-    // Otherwise, display the trees
     .tree-card(v-for="tree in trees" :key="tree.id" @contextmenu.prevent="showContextMenu($event, tree)" @click="viewTree(tree.id)")
       h3.tree-name {{ tree.name }}
-      p Date created: {{ formatDate(tree.lastModified) }}
-      // Additional tree information can go here
+      p Date created: {{ formatDate(tree.dateCreated) }}
 
   ContextMenu(
     :contextMenuType="ContextMenuType.TREE"
@@ -60,18 +61,23 @@
 <script lang="ts">
 import UpperBanner from "./UpperBanner.vue";
 import InputModal from "./InputModal.vue";
-
 import { defineComponent, ref, onMounted, onBeforeMount, type Ref } from "vue";
 import router from "@/router";
 import { ContextMenuType } from "@/helpers/sharedTypes";
 import ContextMenu from "./ContextMenu.vue";
 
+/*
+Interface for metadata associated with a tree.
+*/
 interface Tree {
+  // The user id of who created the tree
   creator: string;
+  // The name of the tree
   name: string;
+  // The unique id of the tree
   id: string;
+  // The timestamp of when the tree was created
   dateCreated: Date;
-  lastModified: Date;
 }
 
 export default defineComponent({
@@ -81,65 +87,101 @@ export default defineComponent({
     InputModal,
     ContextMenu,
   },
+
   setup() {
+    // Reactive variables
+
+    // List of trees owned by the user
     const trees: Ref<Tree[]> = ref([]);
+    // Error message to display if fetching trees fails
     const errorMessage: Ref<string | null> = ref(null);
+    // Visibility of create, rename, and delete modals
     const isCreateModalVisible = ref(false);
     const isRenameModalVisible = ref(false);
     const isDeleteModalVisible = ref(false);
 
+    // Context menu state
+    const contextMenuVisible = ref(false);
+    const contextMenuPosition = ref({ x: 0, y: 0 });
+    // The currently selected tree for context menu actions
+    const selectedTree = ref<Tree | null>(null);
+
+    // Show and hide modals
     const showCreateModal = () => {
       isCreateModalVisible.value = true;
     };
-
     const hideCreateModal = () => {
       isCreateModalVisible.value = false;
     };
-
     const showRenameModal = () => {
-      console.log("Showing rename modal");
       contextMenuVisible.value = false;
       isRenameModalVisible.value = true;
     };
-
     const hideRenameModal = () => {
       isRenameModalVisible.value = false;
     };
-
     const showDeleteModal = () => {
-      console.log("Showing delete modal");
       contextMenuVisible.value = false;
       isDeleteModalVisible.value = true;
     };
-
     const hideDeleteModal = () => {
       isDeleteModalVisible.value = false;
     };
 
+    /*
+    NAME
+      fetchTrees - Fetches the list of trees from the server
+    
+    SYNOPSIS
+      () => Promise<void>
+
+    DESCRIPTION
+      This function fetches the list of trees owned by the user from the server.
+      If the fetch is successful, the list of trees is stored in the 'trees' variable.
+      If the fetch fails, an error message is stored in the 'errorMessage' variable.
+
+    RETURNS
+      A Promise that resolves when the trees have been fetched
+    */
     const fetchTrees = async () => {
       try {
+        // Fetch trees from the server
         const token = localStorage.getItem("token");
         const response = await fetch("/api/trees", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
-
         if (!response.ok) throw new Error("Failed to fetch trees");
 
+        // Set the list of trees and clear any previous error message
         trees.value = await response.json();
-        console.log(JSON.stringify(trees.value, null, 2));
-        errorMessage.value = null; // Clear any previous error
+        errorMessage.value = null;
       } catch (error) {
         console.error("Error fetching trees:", error);
         errorMessage.value =
           "There was an error fetching your trees. Please try again later.";
-        trees.value = []; // Ensure trees array is empty if there's an error
+        trees.value = [];
       }
     };
+    /* fetchTrees */
 
+    /*
+    NAME
+      createTree - Creates a new tree with the given name
+
+    SYNOPSIS
+      (inputValue: string) => Promise<void>
+        inputValue --> the name of the tree to create
+
+    DESCRIPTION
+      This function creates a new tree with the given name. If the tree name is empty,
+      an alert is shown to the user. If the tree creation fails, an alert is shown to the user.
+
+    RETURNS
+      A Promise that resolves when the tree has been created
+    */
     const createTree = async (inputValue: string) => {
-      console.log("Creating tree with name:", inputValue);
       if (!inputValue.trim()) {
         alert("Tree name cannot be empty. Please enter a valid name.");
         return;
@@ -155,21 +197,15 @@ export default defineComponent({
           },
           body: JSON.stringify({ name: inputValue }),
         });
-
         if (!response.ok) throw new Error("Failed to create tree");
 
-        hideCreateModal(); // Hide the modal
-        await fetchTrees(); // Refresh the tree list
+        hideCreateModal();
+        await fetchTrees();
       } catch (error) {
         console.error("Error creating tree:", error);
         alert("Failed to create tree. Please try again.");
       }
     };
-
-    // Context menu
-    const contextMenuVisible = ref(false);
-    const contextMenuPosition = ref({ x: 0, y: 0 });
-    const selectedTree = ref<Tree | null>(null);
 
     // Add click event listener to close context menu
     const handleClickOutside = (event: MouseEvent) => {
@@ -181,9 +217,10 @@ export default defineComponent({
       }
     };
 
+    // Show the context menu at the mouse click position for the given tree
     const showContextMenu = (event: MouseEvent, tree: Tree) => {
       event.preventDefault();
-      event.stopPropagation(); // Prevent the click from being detected as outside
+      event.stopPropagation();
 
       // Adjust position to prevent menu from going off-screen
       const x = Math.min(event.clientX, window.innerWidth - 150); // 150px is min-width of menu
@@ -194,13 +231,28 @@ export default defineComponent({
       selectedTree.value = tree;
     };
 
+    // Hide the context menu
     const hideContextMenu = () => {
       contextMenuVisible.value = false;
       selectedTree.value = null;
     };
 
+    /*
+    NAME
+      renameTree - Renames the selected tree with the given name
+
+    SYNOPSIS
+      (inputValue: string) => Promise<void>
+        inputValue --> the new name for the tree
+
+    DESCRIPTION
+      This function renames the selected tree with the given name. If the tree name is empty,
+      an alert is shown to the user. If the tree renaming fails, an alert is shown to the user.
+
+    RETURNS
+      A Promise that resolves when the tree has been renamed
+    */
     const renameTree = async (inputValue: string) => {
-      console.log("Renaming tree:", inputValue);
       if (!inputValue.trim()) {
         alert("Tree name cannot be empty. Please enter a valid name.");
         return;
@@ -209,6 +261,7 @@ export default defineComponent({
         return;
       }
 
+      // Attempt to rename the tree
       try {
         const token = localStorage.getItem("token");
         const response = await fetch("/api/trees/rename", {
@@ -222,17 +275,30 @@ export default defineComponent({
             treeId: selectedTree.value.id,
           }),
         });
-
         if (!response.ok) throw new Error("Failed to rename tree");
 
-        hideRenameModal(); // Hide the modal
-        await fetchTrees(); // Refresh the tree list
+        hideRenameModal();
+        await fetchTrees();
       } catch (error) {
         console.error("Error renaming tree:", error);
         alert("Failed to rename tree. Please try again.");
       }
     };
+    /* renameTree */
 
+    /*
+    NAME
+      deleteTree - Deletes the selected tree
+    
+    SYNOPSIS
+      () => Promise<void>
+
+    DESCRIPTION
+      This function deletes the selected tree. If the tree deletion fails, an alert is shown to the user.
+
+    RETURNS
+      A Promise that resolves when the tree has been deleted
+    */
     const deleteTree = async () => {
       if (!selectedTree.value) {
         alert("Error in selecting tree. Please try again.");
@@ -254,20 +320,35 @@ export default defineComponent({
 
         if (!response.ok) throw new Error("Failed to delete tree");
 
-        hideDeleteModal(); // Hide the modal
-        await fetchTrees(); // Refresh the tree list
+        hideDeleteModal();
+        await fetchTrees();
       } catch (error) {
         console.error("Error deleting tree:", error);
         alert("Failed to delete tree. Please try again.");
       }
     };
+    /* deleteTree */
 
+    // View the tree with the given id
     const viewTree = (treeId: string) => {
-      console.log("Viewing tree with ID:", treeId);
       // Redirect to the tree view page
       router.push(`/${treeId}`);
     };
 
+    /*
+    NAME
+      togglePublic - Toggles the privacy of the selected tree
+
+    SYNOPSIS
+      () => Promise<void>
+
+    DESCRIPTION
+      This function toggles the privacy of the selected tree. If the tree privacy toggling fails,
+      an alert is shown to the user.
+
+    RETURNS
+      A Promise that resolves when the tree privacy has been toggled
+    */
     const togglePublic = async () => {
       if (!selectedTree.value) {
         alert("Error in selecting tree. Please try again.");
@@ -286,16 +367,25 @@ export default defineComponent({
             },
           }
         );
-
         if (!response.ok) throw new Error("Failed to toggle tree privacy");
 
-        await fetchTrees(); // Refresh the tree list
+        await fetchTrees();
       } catch (error) {
         console.error("Error toggling tree privacy:", error);
         alert("Failed to toggle tree privacy. Please try again.");
       }
-
       hideContextMenu();
+    };
+    /* togglePublic */
+
+    // Format the date in a user-friendly way
+    const formatDate = (date: string) => {
+      const options: Intl.DateTimeFormatOptions = {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      };
+      return new Date(date).toLocaleDateString("en-US", options);
     };
 
     // Add event listeners when component is mounted
@@ -332,18 +422,8 @@ export default defineComponent({
       viewTree,
       ContextMenuType,
       togglePublic,
+      formatDate,
     };
-  },
-
-  methods: {
-    formatDate(date: string) {
-      const options: Intl.DateTimeFormatOptions = {
-        year: "numeric", // "2025"
-        month: "short", // "January"
-        day: "numeric", // "10"
-      };
-      return new Date(date).toLocaleDateString("en-US", options);
-    },
   },
 });
 </script>
@@ -368,16 +448,16 @@ export default defineComponent({
   text-align center
 
 .tree-grid
-  display block // Change from grid to block for full width
+  display block
   padding 16px
-  box-sizing border-box // Helps manage padding and width interactions
-  position relative // Helps maintain consistent layout
+  box-sizing border-box
+  position relative
 
 .tree-card
   .tree-name
-    white-space nowrap // Prevent line breaks
-    overflow hidden // Hide overflow text
-    text-overflow ellipsis // Add ellipsis for overflow text
+    white-space nowrap
+    overflow hidden
+    text-overflow ellipsis
     font-size 2em
   background-color #f3f3f3
   padding 16px
@@ -387,10 +467,10 @@ export default defineComponent({
   display flex
   flex-direction column
   align-items flex-start
-  width 100% // Full width for each card
+  width 100%
   height auto
   min-height 120px
-  margin-bottom 16px // Add margin between cards
+  margin-bottom 16px
   &:hover
     box-shadow 0 6px 12px rgba(0, 0, 0, 0.15)
     transform scale(1.02)
@@ -423,7 +503,7 @@ button
   cursor pointer
   font-size 1em
   font-weight bold
-  flex 1 // Make buttons equal in size
+  flex 1
   text-align center
   &:nth-child(1)
     background-color #f8d7da

@@ -1,3 +1,5 @@
+// Main entry point for the app
+
 import "./assets/main.css";
 
 import { createApp } from "vue";

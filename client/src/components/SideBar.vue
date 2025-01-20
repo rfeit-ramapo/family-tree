@@ -1,3 +1,6 @@
+/** Displays the sidebar with tool icons for the user to interact with the
+canvas. */
+
 <template lang="pug">
     .sidebar
       .sidebar-item#pan(v-on:click="switchTool(Tool.PAN)" :class="{ selected: selectedTool === Tool.PAN }")
@@ -8,11 +11,12 @@
         img(src="@/assets/jump_to_icon.png" alt="Jump to icon")
       .sidebar-item#home(v-on:click="switchTool(Tool.HOME)" :class="{ selected: selectedTool === Tool.HOME }")
         img(src="@/assets/home_icon.png" alt="Home icon")
-  </template>
+</template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
 
+// Enum for the different tools
 export enum Tool {
   PAN = "pan",
   SELECT = "select",
@@ -23,17 +27,16 @@ export enum Tool {
 export default defineComponent({
   name: "SideBar",
   props: {
+    // The currently selected tool
     selectedTool: {
       type: String,
       required: true,
     },
   },
-  setup(props, { emit }) {
-    // Track the selected tool
-
-    // Function to switch the selected tool
+  setup(_, { emit }) {
+    // Emit an event to notify the parent component of the tool change
     const switchTool = (tool: Tool) => {
-      emit("toolChange", tool); // Emit an event to notify the parent component
+      emit("toolChange", tool);
     };
 
     return {
@@ -48,17 +51,17 @@ export default defineComponent({
 .sidebar
   display inline-flex
   flex-direction column
-  justify-content center  /* Centers items vertically */
+  justify-content center
   align-items center
   padding 10px
   background-color #f0f0f0
   border 3px solid #ccc
   box-shadow 0 0 10px rgba(0, 0, 0, 0.1)
   position fixed
-  top 50%  /* Center the sidebar vertically */
+  top 50%
   left 20px
   z-index 1000
-  transform translateY(-50%)  /* Adjust to perfectly center it */
+  transform translateY(-50%)
   width auto
   height auto
 
@@ -66,7 +69,7 @@ export default defineComponent({
   width 100%
   height 50px
   background-color #f0f0f0
-  margin-bottom 20px  /* Increase the spacing between items */
+  margin-bottom 20px
   display flex
   justify-content center
   align-items center

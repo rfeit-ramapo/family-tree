@@ -1,6 +1,11 @@
+/** Displays the loaded tree and handles user interactions with it. The tree is
+rendered on an HTML canvas element, and the user can pan, zoom, and select
+nodes. The component also includes a sidebar with tools for interacting with the
+tree, such as adding new nodes, editing nodes, and jumping to a specific person
+in the tree. */
+
 <template lang="pug">
     UpperBanner
-    // If there is an error fetching the tree, show an error message
     .error-message(v-if="errorMessage")
       p {{ errorMessage }}
 
@@ -79,34 +84,66 @@ export default defineComponent({
     JumpToPerson,
   },
   props: {
+    // The ID of the tree to display
     treeId: {
       type: String,
-      required: true, // The treeId must be provided
+      required: true,
     },
   },
+
   setup(props) {
+    // Reactive variables
+
+    // The canvas element
     const canvas = ref(
       document.getElementById("tree-canvas") as HTMLCanvasElement
     );
+    // The tree data
     const tree: Ref<TreeWithMembers | null> = ref(null);
+    // Error message to display if fetching the tree fails
     const errorMessage: Ref<string | null> = ref(null);
+    // The objects to render on the canvas
     const renderedObjects: Ref<DrawableObject[]> = ref([]);
+    // Whether the user is currently dragging the canvas
     const isDragging = ref(false);
+    // Whether the user has dragged the canvas
     const wasDragged = ref(false);
+    // The currently selected tool
     const selectedTool = ref<Tool>(Tool.PAN);
+    // The currently selected object
     const selectedItem = ref<DrawableObject | null>(null);
+    // The object currently being hovered over
     const hoveredObject = ref<DrawableObject | null>(null);
+    // Whether the context menu is visible
     const contextMenuVisible = ref(false);
+    // The position of the context menu
     const contextMenuPosition: Ref<Position> = ref({ x: 0, y: 0 });
+    // Whether the user has edit permissions for the tree
     const hasEditPerms = ref(false);
+    // The type of context menu to show
     const contextMenuType = ref<ContextMenuType>(ContextMenuType.CANVAS);
+    // Whether to show the jump modal
     const showJumpModal = ref(false);
+    // The ID of the current focal point
     const currentFocalPoint: Ref<string | null> = ref(null);
+    // Whether to show the person modal
+    const showPersonModal = ref(false);
 
+    // Coordinate refs
+    // The last mouse X and Y coordinates
+    const lastX = ref(0);
+    const lastY = ref(0);
+    // The current scale, X offset, and Y offset
+    const scale = ref(1);
+    const offsetX = ref(0);
+    const offsetY = ref(0);
+
+    // Calculate the canvas coordinates given a mouse event
+    // Adjusts for scaling and offset from panning
     const calcOriginalCoords = (event: MouseEvent): Position => {
-      const rect = canvas.value.getBoundingClientRect(); // Get canvas bounds
-      const canvasX = event.clientX - rect.left; // Mouse X relative to canvas
-      const canvasY = event.clientY - rect.top; // Mouse Y relative to canvas
+      const rect = canvas.value.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
 
       // Adjust for scaling and offset
       const originalX = (canvasX - offsetX.value) / scale.value;
@@ -115,6 +152,22 @@ export default defineComponent({
       return { x: originalX, y: originalY };
     };
 
+    /*
+    NAME
+      changeTool - Changes the selected tool
+    
+    SYNOPSIS
+      (tool: Tool) => void
+
+    DESCRIPTION
+      Changes the selected tool to the one specified. If the tool is the jump
+      tool, shows the jump modal. If the tool is the home tool, redirects the
+      user to the user page. If the tool is the pan tool, changes the cursor to
+      a grab cursor. Otherwise, changes the cursor to the default cursor.
+
+    RETURNS
+      void
+    */
     const changeTool = (tool: Tool) => {
       // If jumping, show the modal, otherwise, cancel it
       if (tool === Tool.JUMP_TO) {
@@ -129,7 +182,6 @@ export default defineComponent({
         return;
       }
 
-      console.log("changing tool to", tool);
       // Deselect anything on tool change
       selectedItem.value = null;
       updateSelectionBox(null, renderedObjects.value);
@@ -141,7 +193,23 @@ export default defineComponent({
         canvas.value.style.cursor = "default";
       }
     };
+    /* changeTool */
 
+    /*
+    NAME
+      setupCanvas - Sets up the canvas element
+    
+    SYNOPSIS
+      () => void
+
+    DESCRIPTION
+      Sets up the canvas element by getting the canvas element from the DOM,
+      setting the device pixel ratio, setting the canvas resolution, scaling the
+      drawing context, and adding a resize observer to the canvas container.
+
+    RETURNS
+      void
+    */
     const setupCanvas = () => {
       canvas.value = document.getElementById(
         "tree-canvas"
@@ -158,7 +226,7 @@ export default defineComponent({
       canvas.value.width = displayWidth * dpr;
       canvas.value.height = displayHeight * dpr;
 
-      // Scale drawing context to handle high-DPI screens
+      // Scale drawing context for different DPRs
       ctx?.scale(dpr, dpr);
       canvas.value.style.cursor = "grab";
 
@@ -196,14 +264,31 @@ export default defineComponent({
         resizeObserver.observe(canvas.value.parentElement);
       }
     };
+    /* setupCanvas */
 
+    /*
+    NAME
+      fetchTreeMetadata - Fetches the tree metadata
+
+    SYNOPSIS
+      (focalId?: string) => Promise<void>
+        focalId  --> the ID of the person to center the canvas on
+
+    DESCRIPTION
+      Fetches the tree metadata using the treeId prop. If the focalId is
+      provided, centers the canvas on the person with that ID. If the user has
+      edit permissions for the tree, sets hasEditPerms to true. If the fetch
+      fails, sets the error message to display an error message.
+
+    RETURNS
+      A promise that resolves when the tree metadata is fetched
+    */
     const fetchTreeMetadata = async (focalId?: string) => {
       try {
         const token = localStorage.getItem("token");
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
         };
-
         if (token) {
           headers.Authorization = `Bearer ${token}`;
         }
@@ -216,7 +301,6 @@ export default defineComponent({
             headers,
           }
         );
-
         if (!response.ok) {
           if (response.status === 403) {
             throw new Error("You do not have permission to view this tree.");
@@ -227,15 +311,14 @@ export default defineComponent({
           }
         }
 
+        // Set the tree value and check for edit permissions
         tree.value = await response.json();
         const userId = localStorage.getItem("userId");
-        console.log("userId:", userId);
         hasEditPerms.value =
           userId && tree.value
             ? tree.value.metadata.editors.includes(userId) ||
               tree.value.metadata.creator === userId
             : false;
-        console.log("hasEditPerms:", hasEditPerms.value);
       } catch (error) {
         console.error("Error fetching the tree:", error);
         errorMessage.value =
@@ -245,13 +328,26 @@ export default defineComponent({
         tree.value = null;
       }
     };
+    /* fetchTreeMetadata */
 
-    const lastX = ref(0);
-    const lastY = ref(0);
-    const scale = ref(1);
-    const offsetX = ref(0);
-    const offsetY = ref(0);
+    /*
+    NAME
+      startDrag - Starts dragging the canvas
 
+    SYNOPSIS
+      (event: MouseEvent) => void
+        event  --> the mouse event that triggered the drag
+
+    DESCRIPTION
+      Starts dragging the canvas by setting the last mouse X and Y coordinates
+      and setting isDragging to true. If the selected tool is the pan tool,
+      changes the cursor to a closed hand. If the selected tool is the select
+      tool, checks if the user is dragging a selected object and starts dragging
+      it. If the user is on a selected node, starts dragging it.
+
+    RETURNS
+      void
+    */
     const startDrag = (event: MouseEvent) => {
       lastX.value = event.clientX;
       lastY.value = event.clientY;
@@ -280,15 +376,30 @@ export default defineComponent({
         }
       }
     };
+    /* startDrag */
 
+    /*
+    NAME
+      onMouseMove - Handles mouse movement on the canvas
+
+    SYNOPSIS
+      (event: MouseEvent) => void
+        event  --> the mouse event that triggered the movement
+
+    DESCRIPTION
+      Handles mouse movement on the canvas. Changes behavior based on the
+      selected tool.
+
+    RETURNS
+      void
+    */
     const onMouseMove = (event: MouseEvent) => {
       if (isDragging.value) return onDrag(event);
 
       if (selectedTool.value === Tool.PAN) {
         return;
       } else if (selectedTool.value === Tool.SELECT) {
-        // Get mouse coordinates relative to the canvas
-
+        // Check if the mouse is hovering over an object
         const newHoveredObject = isPointInsideObject(
           calcOriginalCoords(event),
           renderedObjects.value
@@ -320,7 +431,20 @@ export default defineComponent({
         }
       }
     };
+    /* onMouseMove */
 
+    /*
+    NAME
+      onDrag - Handles dragging the canvas
+
+    SYNOPSIS
+      (event: MouseEvent) => void
+        event  --> the mouse event that triggered the drag
+
+    DESCRIPTION
+      Handles dragging the canvas. Calculates new coordinates based on offset
+      and current scale.
+    */
     const onDrag = (event: MouseEvent) => {
       if (!isDragging.value) return;
 
@@ -350,36 +474,64 @@ export default defineComponent({
 
       drawCanvas();
     };
+    /* onDrag */
 
+    // End dragging the canvas and reset the cursor
     const endDrag = () => {
       isDragging.value = false;
       if (canvas.value.style.cursor === "grabbing")
         canvas.value.style.cursor = "grab";
     };
 
-    const onHover = (event: MouseEvent) => {
-      if (selectedTool.value === Tool.PAN) {
-        // show a hand cursor when hovering over the canvas
-        canvas.value.style.cursor = "grab";
-      }
-    };
+    /*
+    NAME
+      onZoom - Handles zooming the canvas
 
+    SYNOPSIS
+      (event: WheelEvent) => void
+        event  --> the wheel event that triggered the zoom
+
+    DESCRIPTION
+      Handles zooming the canvas. Calculates the new scale based on the zoom
+      factor and the mouse position. Updates the scale, offset, and redraws the
+      canvas.
+
+    RETURNS
+      void
+    */
     const onZoom = (event: WheelEvent) => {
       event.preventDefault();
+
       const mouseX = event.clientX - canvas.value.getBoundingClientRect().left;
       const mouseY = event.clientY - canvas.value.getBoundingClientRect().top;
+
       const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
       const newScale = scale.value * zoomFactor;
+
       const offsetXChange =
         (mouseX - offsetX.value) * (1 - newScale / scale.value);
       const offsetYChange =
         (mouseY - offsetY.value) * (1 - newScale / scale.value);
+
       scale.value = newScale;
       offsetX.value += offsetXChange;
       offsetY.value += offsetYChange;
+
       drawCanvas();
     };
+    /* onZoom */
 
+    /*
+    NAME
+      onCanvasClick - Handles clicking on the canvas
+
+    SYNOPSIS
+      (event: MouseEvent) => void
+        event  --> the mouse event that triggered the click
+
+    DESCRIPTION
+      Handles clicks on the canvas. Changes behavior based on the selected tool.
+    */
     const onCanvasClick = (event: MouseEvent) => {
       // Prevent clicking if dragging
       if (wasDragged.value) {
@@ -401,17 +553,21 @@ export default defineComponent({
         renderedObjects.value
       );
 
+      // If the user is in select mode, select the object
       if (clickedObject && selectedTool.value === Tool.SELECT) {
         selectedItem.value = clickedObject;
         canvas.value.style.cursor = "grab";
         updateSelectionBox(clickedObject, renderedObjects.value);
-      } else if (!clickedObject && selectedTool.value === Tool.SELECT) {
+      }
+      // If the user clicked outside the object, deselect it
+      else if (!clickedObject && selectedTool.value === Tool.SELECT) {
         selectedItem.value = null;
         updateSelectionBox(null, renderedObjects.value);
       }
     };
 
-    const onDoubleClick = (event: MouseEvent) => {
+    // Handle double-clicking to rehome the focal point
+    const onDoubleClick = () => {
       if (selectedTool.value === Tool.SELECT) {
         if (selectedItem.value instanceof DrawableNode) {
           // Rehome the focal point
@@ -421,6 +577,22 @@ export default defineComponent({
       }
     };
 
+    /*
+    NAME
+      onRightClick - Handles right-clicking on the canvas
+
+    SYNOPSIS
+      (event: MouseEvent) => void
+        event  --> the mouse event that triggered the right-click
+
+    DESCRIPTION
+      Handles right-clicking on the canvas. If the user is in select mode, tries
+      to select an object. Determines the type of context menu to show based on
+      the selected object.
+
+    RETURNS
+      void
+    */
     const onRightClick = (event: MouseEvent) => {
       // Exit if not in select mode
       if (selectedTool.value !== Tool.SELECT) return;
@@ -438,8 +610,6 @@ export default defineComponent({
             ? ContextMenuType.PARTNER_REL
             : ContextMenuType.PARENT_REL;
 
-      // Show custom context menu
-
       // Change cursor
       canvas.value.style.cursor = "default";
 
@@ -451,7 +621,10 @@ export default defineComponent({
       contextMenuPosition.value = { x: menuX, y: menuY };
       contextMenuVisible.value = true;
     };
+    /* onRightClick */
 
+    // Sets up objects on the canvas, links to the drawn objects via event bus,
+    // and centers the canvas on the focal point
     const setupObjects = () => {
       const ctx = canvas.value.getContext("2d");
       if (!ctx) return;
@@ -463,10 +636,27 @@ export default defineComponent({
       centerOnFocalPoint(renderedObjects.value);
     };
 
+    /*
+    NAME
+      drawCanvas - Draws the canvas
+
+    SYNOPSIS
+      () => void
+
+    DESCRIPTION
+      Draws the canvas by clearing the canvas, setting up the drawing context,
+      and redrawing the objects on the canvas. If the tree is not loaded, exits
+      the function. If the tree is loaded but the objects are not rendered, draws
+      the objects. Otherwise, redraws the canvas with the rendered objects.
+
+    RETURNS
+      void
+    */
     const drawCanvas = () => {
       const ctx = canvas.value.getContext("2d");
       if (!ctx) return;
 
+      // Clear the canvas and set up the drawing context
       ctx.clearRect(0, 0, canvas.value.width, canvas.value.height);
       ctx.save();
       ctx.translate(offsetX.value, offsetY.value);
@@ -480,7 +670,24 @@ export default defineComponent({
 
       ctx.restore();
     };
+    /* drawCanvas */
 
+    /*
+    NAME
+      centerCanvas - Centers the canvas on a given point
+
+    SYNOPSIS
+      (centerX: number, centerY: number) => void
+        centerX  --> the X-coordinate to center the canvas on
+        centerY  --> the Y-coordinate to center the canvas on
+
+    DESCRIPTION
+      Centers the canvas on a given point by calculating the offset to center
+      the content and redrawing the canvas with the updated offsets.
+
+    RETURNS
+      void
+    */
     const centerCanvas = (centerX: number, centerY: number) => {
       const dpr = window.devicePixelRatio || 1; // Account for high-DPI screens
 
@@ -492,9 +699,12 @@ export default defineComponent({
       offsetX.value = (canvasWidth / 2 - centerX) * scale.value;
       offsetY.value = (canvasHeight / 2 - centerY) * scale.value;
 
-      drawCanvas(); // Redraw with updated offsets
+      // Redraw with updated offsets
+      drawCanvas();
     };
+    /* centerCanvas */
 
+    // Centers the canvas on the focal point
     const centerOnFocalPoint = (renderedObjects: DrawableObject[]) => {
       const focalDrawing = renderedObjects.find((obj) => {
         if (obj instanceof DrawableNode) {
@@ -506,31 +716,37 @@ export default defineComponent({
           focalDrawing.position.x + focalDrawing.width / 2,
           focalDrawing.position.y
         );
-
-        console.log(
-          "centered canvas on:",
-          focalDrawing.position.x + focalDrawing.width / 2,
-          focalDrawing.position.y
-        );
       }
     };
 
+    // Hides the context menu
     const hideContextMenu = () => {
       contextMenuVisible.value = false;
     };
 
+    /*
+    NAME
+      createNode - Creates a new node on the canvas
+
+    SYNOPSIS
+      (event: MouseEvent) => void
+        event  --> the mouse event that triggered the creation
+
+    DESCRIPTION
+      Sends a request to the server to create a new node. If the request is
+      successful, adds the new node to the tree and selects it.
+    */
     const createNode = async (event: MouseEvent) => {
       if (!tree.value) return;
 
+      // Send a request to create a new node
       const token = localStorage.getItem("token");
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
-
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
-
       const response = await fetch(`/api/person`, {
         method: "POST",
         headers,
@@ -538,12 +754,12 @@ export default defineComponent({
           treeId: tree.value.metadata.id,
         }),
       });
-
       if (!response.ok) {
         console.error("Failed to create node:", response.statusText);
         return;
       }
 
+      // Add the new node to the tree
       const newPerson = (await response.json()).person as TreeMember;
       const currentCoords = calcOriginalCoords(event);
       const canvasState = {
@@ -552,16 +768,18 @@ export default defineComponent({
         y: currentCoords.y,
       };
 
-      // Add the new node to the tree
+      // Create a drawable object for the new node
       const newDrawable = addMemberToDrawing(
         newPerson,
         renderedObjects.value,
         canvasState
       );
+      // Select the new node
       selectedItem.value = newDrawable;
     };
+    /* createNode */
 
-    const showPersonModal = ref(false);
+    // Toggle the person modal to edit the selected item
     const editItem = () => {
       // If the item is a node, show the Person View
       if (selectedItem.value instanceof DrawableNode) {
@@ -569,11 +787,26 @@ export default defineComponent({
       }
     };
 
+    /*
+    NAME
+      deleteItem - Deletes the selected item
+
+    SYNOPSIS
+      () => void
+
+    DESCRIPTION
+      Deletes the selected item. If the selected item contains multiple child relationships,
+      deletes those as well. Reloads the tree after deletion.
+
+    RETURNS
+      void
+    */
     const deleteItem = async () => {
       if (!selectedItem.value) return;
+
+      // Delete a node
       if (selectedItem.value instanceof DrawableNode) {
         const nodeId = selectedItem.value.id;
-
         try {
           const token = localStorage.getItem("token");
           const headers: Record<string, string> = {
@@ -596,7 +829,10 @@ export default defineComponent({
         } catch (error) {
           console.error("Error deleting node:", error);
         }
-      } else if (selectedItem.value instanceof DrawableRelationship) {
+      }
+
+      // Delete a relationship
+      else if (selectedItem.value instanceof DrawableRelationship) {
         const originIds = selectedItem.value.relationship.fromNodes.map(
           (node) => node.id
         );
@@ -633,13 +869,16 @@ export default defineComponent({
           }
         }
       }
+      // Reload the tree after deletion
       reloadTree();
     };
 
+    // Change the picture of the selected item
     const changePicture = (newImageUrl: string) => {
       (selectedItem.value as DrawableNode).replaceImage(newImageUrl);
     };
 
+    // Change the name of the selected item
     const changeName = ({
       firstName,
       middleName,
@@ -650,15 +889,28 @@ export default defineComponent({
       lastName: string;
     }) => {
       (selectedItem.value as DrawableNode).replaceName(
-        `${firstName ?? ""}${middleName ?? ""} ${lastName ?? ""}`
+        `${firstName ?? ""} ${middleName ?? ""} ${lastName ?? ""}`
       );
     };
 
-    const reloadTree = async (focalId?: string) => {
-      console.log("reloading tree with focalId:", focalId);
+    /*
+    NAME
+      reloadTree - Reloads the tree
 
+    SYNOPSIS
+      (focalId?: string) => Promise<void>
+        focalId  --> the ID of the person to center the canvas on
+
+    DESCRIPTION
+      Reloads the tree by fetching the tree metadata and redrawing the canvas.
+      If the focalId is provided, centers the canvas on the person with that ID.
+      If the user is on the jump tool, switches to the pan tool.
+
+    RETURNS
+      A promise that resolves when the tree is reloaded
+    */
+    const reloadTree = async (focalId?: string) => {
       if (focalId) currentFocalPoint.value = focalId;
-      console.log("current focal point:", currentFocalPoint.value);
       // Switch to pan tool if on jump tool
       if (selectedTool.value === Tool.JUMP_TO) {
         changeTool(Tool.PAN);
@@ -669,19 +921,22 @@ export default defineComponent({
       await fetchTreeMetadata(currentFocalPoint.value ?? undefined);
       setupObjects();
     };
+    /* reloadTree */
 
+    // Jump to a person by reloading with them as the focal point
     const jumpToPerson = (selectedPerson: TreeMember) => {
       reloadTree(selectedPerson.id);
     };
 
+    // On mount, set the canvas and objects up and fetch the tree metadata
     onMounted(async () => {
       setupCanvas();
-
       await fetchTreeMetadata();
       setupObjects();
       document.addEventListener("click", hideContextMenu);
     });
 
+    // On unmount, remove event listeners
     onUnmounted(() => {
       eventBus.off("updatedDrawable", drawCanvas);
       document.removeEventListener("click", hideContextMenu);
@@ -706,7 +961,6 @@ export default defineComponent({
       drawCanvas,
       onCanvasClick,
       changeTool,
-      onHover,
       createNode,
       selectedTool,
       Tool,

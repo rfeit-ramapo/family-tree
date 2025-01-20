@@ -1,3 +1,7 @@
+/**
+ * File for providing the logic for drawing the family tree on the canvas.
+ */
+
 import defaultPerson from "../assets/default_person.svg";
 import eventBus from "./eventBus";
 import {
@@ -7,29 +11,57 @@ import {
   type TreeWithMembers,
 } from "./treeToNodes";
 
+/**
+ * Holds information about the canvas rendering context and
+ * the current position of the cursor while drawing.
+ */
 interface CanvasState {
+  // The canvas rendering context
   ctx: CanvasRenderingContext2D;
+  // The current x coordinate
   x: number;
+  // The current y coordinate
   y: number;
 }
 
+/**
+ * Represents a position on the canvas.
+ */
 export interface Position {
+  // The x coordinate for this position
   x: number;
+  // The y coordinate for this position
   y: number;
 }
 
+/**
+ * Holds drawing constants used for rendering nodes and relationships.
+ * Easily changed for different drawing styles.
+ */
 abstract class DrawingConstants {
+  // The default width to draw objects
   static readonly DEFAULT_WIDTH = 125;
+  // The default height to draw objects
   static readonly DEFAULT_HEIGHT = 200;
+  // The default radius used for rounding rectangle corners
   static readonly DEFAULT_RADIUS = 20;
+  // The default spacer width between objects
   static readonly SPACER_WIDTH = this.DEFAULT_WIDTH / 2;
+  // The default spacer height between objects
   static readonly SPACER_HEIGHT = this.DEFAULT_HEIGHT * 0.75;
+  // The default line width used for drawing lines
   static readonly LINE_WIDTH = 5;
+  // The padding around the selected object
   static readonly SELECTOR_PADDING = 10;
 }
 
+/**
+ * Represents a drawable object on the canvas.
+ */
 export abstract class DrawableObject {
+  // The position of the object on the canvas
   position: { x: number; y: number };
+  // The unique identifier for this object
   id: string;
 
   constructor(x: number, y: number, id: string) {
@@ -37,27 +69,46 @@ export abstract class DrawableObject {
     this.id = id;
   }
 
+  // Abstract methods; defined in subclasses
   abstract draw(ctx: CanvasRenderingContext2D): void;
   abstract isInShape(point: { x: number; y: number }): boolean;
   abstract toggleHover(toggle: boolean): void;
+
+  // Default implementation for moving an object
   move(dx: number, dy: number) {
+    // Do not move unless overridden in subclasses
     return;
   }
 }
 
+/**
+ * Represents a drawable node on the canvas.
+ */
 export class DrawableNode extends DrawableObject {
+  // The width of the node
   width: number;
+  // The height of the node
   height: number;
+  // The radius for rounding the corners of the node
   radius: number;
+  // The name to display on the node
   displayName: string;
+  // The URL for the image to display on the node
   displayImageURL: string | null;
+  // The line width for the border of the node
   lineWidth: number = DrawingConstants.LINE_WIDTH;
+  // The border color for the node
   borderColor: string;
+  // The fill color for the node
   fillColor: string;
+  // The node object associated with this drawable node
   node: Node;
+  // The image to display on the node
   image: HTMLImageElement;
-  startRelationships: DrawableRelationship[] = []; // originating from this node
-  endRelationships: DrawableRelationship[] = []; // ending at this node
+  // The relationships originating from this node
+  startRelationships: DrawableRelationship[] = [];
+  // The relationships ending at this node
+  endRelationships: DrawableRelationship[] = [];
 
   constructor(x: number, y: number, node: Node) {
     super(x, y, node.id);
@@ -76,7 +127,18 @@ export class DrawableNode extends DrawableObject {
     this.loadImage(node.displayImageURL ?? defaultPerson);
   }
 
+  /**
+   * NAME: loadImage
+   *
+   * SYNOPSIS: loadImage(url: string)
+   *    url --> the URL of the image to load
+   *
+   * DESCRIPTION: Loads an image from the provided URL and sets it as the image property of this object.
+   *
+   * RETURNS: void
+   */
   private loadImage(url: string) {
+    // Prepend the server URL for relative URLs
     if (url !== defaultPerson && !url.startsWith("http")) {
       url = `${import.meta.env.VITE_SERVER_URL}${url}`;
     }
@@ -92,7 +154,18 @@ export class DrawableNode extends DrawableObject {
       }
     };
   }
+  /* loadImage */
 
+  /**
+   * NAME: draw
+   *
+   * SYNOPSIS: draw(ctx: CanvasRenderingContext2D)
+   *    ctx --> the rendering context for the canvas
+   *
+   * DESCRIPTION: Draws the node on the canvas using the provided rendering context.
+   *
+   * RETURNS: void
+   */
   draw(ctx: CanvasRenderingContext2D) {
     // Draw the background shape first
     drawRoundedRectFromLeft(
@@ -115,6 +188,16 @@ export class DrawableNode extends DrawableObject {
     this.drawText(ctx);
   }
 
+  /**
+   * NAME: drawImage
+   *
+   * SYNOPSIS: drawImage(ctx: CanvasRenderingContext2D)
+   *    ctx --> the rendering context for the canvas
+   *
+   * DESCRIPTION: Draws the image on the node using the provided rendering context.
+   *
+   * RETURNS: void
+   */
   drawImage(ctx: CanvasRenderingContext2D) {
     // Set the target height to 2/3 of the node height
     let targetHeight = this.height * 0.67;
@@ -135,6 +218,16 @@ export class DrawableNode extends DrawableObject {
     ctx.drawImage(this.image, centerX, topY, targetWidth, targetHeight);
   }
 
+  /**
+   * NAME: drawText
+   *
+   * SYNOPSIS: drawText(ctx: CanvasRenderingContext2D)
+   *    ctx --> the rendering context for the canvas
+   *
+   * DESCRIPTION: Draws the text label on the node using the provided rendering context.
+   *
+   * RETURNS: void
+   */
   drawText(ctx: CanvasRenderingContext2D) {
     // Draw the text label in the bottom third of the node
     const bottomThirdHeight = this.height / 3;
@@ -144,19 +237,32 @@ export class DrawableNode extends DrawableObject {
     ctx.fillStyle = "black";
     ctx.textAlign = "center";
 
+    // Split the name into two lines if it contains a space
     const nameParts = this.displayName.split(" ");
     if (nameParts.length > 1) {
       const line1 = nameParts
         .slice(0, Math.ceil(nameParts.length / 2))
         .join(" ");
       const line2 = nameParts.slice(Math.ceil(nameParts.length / 2)).join(" ");
+
       ctx.fillText(line1, this.position.x + this.width / 2, textY - 10);
       ctx.fillText(line2, this.position.x + this.width / 2, textY + 10);
     } else {
       ctx.fillText(this.displayName, this.position.x + this.width / 2, textY);
     }
   }
+  /* drawText */
 
+  /**
+   * NAME: isInShape
+   *
+   * SYNOPSIS: isInShape(point: { x: number; y: number }): boolean
+   *    point --> the point to check if it is inside the node
+   *
+   * DESCRIPTION: Checks if the provided point is inside the node.
+   *
+   * RETURNS: boolean
+   */
   isInShape({ x, y }: { x: number; y: number }): boolean {
     const upperBound = this.position.y - this.height / 2;
     const lowerBound = this.position.y + this.height / 2;
@@ -167,7 +273,18 @@ export class DrawableNode extends DrawableObject {
       x >= leftBound && x <= rightBound && y >= upperBound && y <= lowerBound
     );
   }
+  /* isInShape */
 
+  /**
+   * NAME: toggleHover
+   *
+   * SYNOPSIS: toggleHover(toggle: boolean)
+   *    toggle --> a boolean indicating whether the node is being hovered over
+   *
+   * DESCRIPTION: Toggles the hover effect on the node.
+   *
+   * RETURNS: void
+   */
   toggleHover(toggle: boolean) {
     this.borderColor = toggle
       ? "green"
@@ -180,10 +297,24 @@ export class DrawableNode extends DrawableObject {
 
     eventBus.emit("updatedDrawable", this);
   }
+  /* toggleHover */
 
+  /**
+   * NAME: move
+   *
+   * SYNOPSIS: move(dx: number, dy: number)
+   *    dx --> the change in x position
+   *    dy --> the change in y position
+   *
+   * DESCRIPTION: Moves the node by the provided change in x and y positions.
+   *
+   * RETURNS: void
+   */
   move(dx: number, dy: number) {
     this.position.x += dx;
     this.position.y += dy;
+
+    // Move the connected relationships
     for (const relationship of this.startRelationships) {
       relationship.move(dx, dy);
     }
@@ -191,26 +322,57 @@ export class DrawableNode extends DrawableObject {
       relationship.move(dx, dy, true);
     }
   }
+  /* move */
 
+  /**
+   * NAME: replaceImage
+   *
+   * SYNOPSIS: replaceImage(newImageUrl: string)
+   *   newImageUrl --> the URL of the new image to display on the node
+   *
+   * DESCRIPTION: Replaces the current image on the node with the image at the provided URL.
+   *
+   * RETURNS: void
+   */
   replaceImage(newImageUrl: string) {
     const replacement = newImageUrl === "" ? defaultPerson : newImageUrl;
     this.loadImage(replacement);
   }
 
+  /**
+   * NAME: replaceName
+   *
+   * SYNOPSIS: replaceName(newName: string)
+   *   newName --> the new name to display on the node
+   *
+   * DESCRIPTION: Replaces the current name on the node with the provided name.
+   *
+   * RETURNS: void
+   */
   replaceName(newName: string) {
     this.displayName = newName;
     eventBus.emit("updatedDrawable", this);
   }
 }
 
+/**
+ * Represents a drawable relationship on the canvas.
+ */
 export class DrawableRelationship extends DrawableObject {
+  // The relationship object associated with this drawable relationship
   relationship: Relationship;
+  // The end position of the relationship line
   endPosition: { x: number; y: number };
+  // The color of the line
   lineColor: string;
+  // The style of the line
   lineStyle: LineStyle;
+  // The width of the line
   lineWidth: number = DrawingConstants.LINE_WIDTH;
+  // The relationships connected to this relationship
   connectedRelationships: DrawableRelationship[] = [];
-  connectionPoint: number | null = null; // Relative position along the partner line
+  // For ParentsRelationships, the relative position along the partner line
+  connectionPoint: number | null = null;
 
   constructor(
     x: number,
@@ -232,7 +394,15 @@ export class DrawableRelationship extends DrawableObject {
     }
   }
 
-  // Calculate the connection point on the partner line
+  /**
+   * NAME: calculateConnectionPoints
+   *
+   * SYNOPSIS: calculateConnectionPoints()
+   *
+   * DESCRIPTION: Calculates the connection points for child relationships of a PartnerRelationship.
+   *
+   * RETURNS: void
+   */
   calculateConnectionPoints() {
     if (this.relationship instanceof PartnerRelationship) {
       // For each child relationship, calculate and store its connection point
@@ -245,8 +415,17 @@ export class DrawableRelationship extends DrawableObject {
       }
     }
   }
+  /* calculateConnectionPoints */
 
-  // Update connected relationship positions when the partner line moves
+  /**
+   * NAME: updateConnectedRelationships
+   *
+   * SYNOPSIS: updateConnectedRelationships()
+   *
+   * DESCRIPTION: Updates the positions of connected relationships when the partner line moves.
+   *
+   * RETURNS: void
+   */
   updateConnectedRelationships() {
     if (this.relationship instanceof PartnerRelationship) {
       for (const connected of this.connectedRelationships) {
@@ -269,7 +448,20 @@ export class DrawableRelationship extends DrawableObject {
       }
     }
   }
+  /* updateConnectedRelationships */
 
+  /**
+   * NAME: move
+   *
+   * SYNOPSIS: move(dx: number, dy: number, isEnd: boolean = false)
+   *    dx --> the change in x position
+   *    dy --> the change in y position
+   *    isEnd --> a boolean indicating whether the end position should be moved
+   *
+   * DESCRIPTION: Moves the relationship by the provided change in x and y positions.
+   *
+   * RETURNS: void
+   */
   move(dx: number, dy: number, isEnd: boolean = false) {
     if (isEnd) {
       this.endPosition.x += dx;
@@ -281,8 +473,18 @@ export class DrawableRelationship extends DrawableObject {
     // Update connected relationships after moving
     this.updateConnectedRelationships();
   }
+  /* move */
 
-  // Modified draw method to handle angled lines
+  /**
+   * NAME: draw
+   *
+   * SYNOPSIS: draw(ctx: CanvasRenderingContext2D)
+   *   ctx --> the rendering context for the canvas
+   *
+   * DESCRIPTION: Draws the relationship on the canvas using the provided rendering context.
+   *
+   * RETURNS: void
+   */
   draw(ctx: CanvasRenderingContext2D) {
     drawLine(
       ctx,
@@ -295,7 +497,18 @@ export class DrawableRelationship extends DrawableObject {
       this.lineWidth
     );
   }
+  /* draw */
 
+  /**
+   * NAME: isInShape
+   *
+   * SYNOPSIS: isInShape(point: { x: number; y: number }): boolean
+   *    point --> the point to check if it is inside the relationship
+   *
+   * DESCRIPTION: Checks if the provided point is inside the relationship.
+   *
+   * RETURNS: boolean
+   */
   isInShape({ x, y }: { x: number; y: number }): boolean {
     // Line segment endpoints
     const { x: x1, y: y1 } = this.position;
@@ -329,7 +542,18 @@ export class DrawableRelationship extends DrawableObject {
     const tolerance = this.lineWidth;
     return distanceToSegment <= tolerance;
   }
+  /* isInShape */
 
+  /**
+   * NAME: toggleHover
+   *
+   * SYNOPSIS: toggleHover(toggle: boolean)
+   *    toggle --> a boolean indicating whether the relationship is being hovered over
+   *
+   * DESCRIPTION: Toggles the hover effect on the relationship.
+   *
+   * RETURNS: void
+   */
   toggleHover(toggle: boolean) {
     this.lineWidth = toggle
       ? DrawingConstants.LINE_WIDTH * 2
@@ -337,19 +561,35 @@ export class DrawableRelationship extends DrawableObject {
 
     eventBus.emit("updatedDrawable", this);
   }
+  /* toggleHover */
 }
 
+/**
+ * Represents a selection box drawn around another object.
+ */
 class SelectionBox extends DrawableObject {
+  // The object that is currently selected
   selectedObject: DrawableObject | null = null;
 
   constructor() {
     super(
+      // Initial position is irrelevant
       0,
-      0, // Initial position is irrelevant
+      0,
       "selector"
     );
   }
 
+  /**
+   * NAME: setSelection
+   *
+   * SYNOPSIS: setSelection(selectedObject: DrawableObject | null)
+   *    selectedObject --> the object to set as selected
+   *
+   * DESCRIPTION: Sets the selected object and updates the position of the selection box.
+   *
+   * RETURNS: void
+   */
   setSelection(selectedObject: DrawableObject | null) {
     this.position.x = selectedObject
       ? selectedObject.position.x - DrawingConstants.SELECTOR_PADDING
@@ -360,9 +600,20 @@ class SelectionBox extends DrawableObject {
 
     this.selectedObject = selectedObject;
   }
+  /* setSelection */
 
+  /**
+   * NAME: draw
+   *
+   * SYNOPSIS: draw(ctx: CanvasRenderingContext2D)
+   *    ctx --> the rendering context for the canvas
+   *
+   * DESCRIPTION: Draws the selection box around the selected object.
+   *
+   * RETURNS: void
+   */
   draw(ctx: CanvasRenderingContext2D) {
-    // draw a thin rectangle around the selected node
+    // Draw a thin rectangle around a selected node
     if (this.selectedObject instanceof DrawableNode) {
       const topLeftCorner = {
         y: this.selectedObject.position.y - this.selectedObject.height / 2,
@@ -439,29 +690,69 @@ class SelectionBox extends DrawableObject {
       );
     }
   }
+  /* draw */
 
+  /**
+   * NAME: isInShape
+   *
+   * SYNOPSIS: isInShape(point: { x: number; y: number }): boolean
+   *    point --> the point to check if it is inside the selection box
+   *
+   * DESCRIPTION: Checks if the provided point is inside the selection box.
+   *
+   * RETURNS: boolean
+   */
   isInShape() {
     return false;
   }
+  /* isInShape */
+
+  /**
+   * NAME: toggleHover
+   *
+   * SYNOPSIS: toggleHover(toggle: boolean)
+   *    toggle --> a boolean indicating whether the selection box is being hovered over
+   *
+   * DESCRIPTION: Toggles the hover effect on the selection box.
+   *
+   * RETURNS: void
+   */
   toggleHover() {}
+  /* toggleHover */
 }
 
+/**
+ * Represents an object that can be drawn on the canvas.
+ */
 abstract class CanvasObject {
+  // Function to calculate the layout of this object and add it to the render list
   abstract calculateLayout(
     canvasState: CanvasState,
     renderList: DrawableObject[]
   ): void;
 }
 
+/**
+ * Represents a node that can be drawn on the canvas.
+ */
 export class Node extends CanvasObject {
+  // The unique identifier for this node
   id: string;
+  // The name to display on the node
   displayName: string;
+  // The URL for the image to display on the node
   displayImageURL: string | null;
+  // The children directly connected to this node
   childRelationships: ParentRelationship[];
+  // The parents directly connected to this node
   parentRelationships: ParentRelationship[];
+  // The partner connected to this node
   partnerRelationship: PartnerRelationship | null;
+  // A boolean indicating whether this node is the second partner in a pair
   isPartner: boolean;
+  // A boolean indicating whether this node is the focal point of the tree
   isFocalPoint: boolean = false;
+  // A string indicating the gender of the person this node represents
   gender?: string;
 
   constructor(
@@ -482,7 +773,15 @@ export class Node extends CanvasObject {
     this.gender = gender;
   }
 
-  // Get the width of this particular node
+  /**
+   * NAME: getWidth
+   *
+   * SYNOPSIS: getWidth(): number
+   *
+   * DESCRIPTION: Calculates the width required to draw this node based on its children.
+   *
+   * RETURNS: number
+   */
   getWidth() {
     // If there are no children, use the default
     if (this.childRelationships.length === 0) {
@@ -501,13 +800,32 @@ export class Node extends CanvasObject {
     return childWidths + spacerWidths;
   }
 
-  // Get the width of the unit containing this node and its partner
+  /**
+   * NAME: getUnitWidth
+   *
+   * SYNOPSIS: getUnitWidth(): number
+   *
+   * DESCRIPTION: Calculates the width of this node plus their partner.
+   *
+   * RETURNS: number
+   */
   getUnitWidth() {
     if (this.partnerRelationship)
       return this.partnerRelationship.getUnitWidth();
     else return this.getWidth();
   }
 
+  /**
+   * NAME: calculateLayout
+   *
+   * SYNOPSIS: calculateLayout(canvasState: CanvasState, renderList: DrawableObject[])
+   *    canvasState --> the current canvas state
+   *    renderList --> the list of objects to render on the canvas
+   *
+   * DESCRIPTION: Calculates the layout for this node and adds it to the render list.
+   *
+   * RETURNS: void
+   */
   calculateLayout(
     { ctx, x: fromX, y: fromY }: CanvasState,
     renderList: DrawableObject[]
@@ -579,7 +897,19 @@ export class Node extends CanvasObject {
 
     return drawableNode;
   }
+  /* calculateLayout */
 
+  /**
+   * NAME: calculateLayoutAsDescendant
+   *
+   * SYNOPSIS: calculateLayoutAsDescendant(canvasState: CanvasState, renderList: DrawableObject[])
+   *    canvasState --> the current canvas state
+   *    renderList --> the list of objects to render on the canvas
+   *
+   * DESCRIPTION: Calculates the layout for this node as a descendant and adds it to the render list. Descendant nodes are drawn from the top instead of the left.
+   *
+   * RETURNS: void
+   */
   calculateLayoutAsDescendant(
     { ctx, x: fromX, y: fromY }: CanvasState,
     renderList: DrawableObject[]
@@ -589,25 +919,42 @@ export class Node extends CanvasObject {
     const topY = fromY + 0.5 * DrawingConstants.DEFAULT_HEIGHT;
     return this.calculateLayout({ ctx, x: leftX, y: topY }, renderList);
   }
+  /* calculateLayoutAsDescendant */
 }
 
+/**
+ * Represents the direction of a relationship.
+ */
 enum RelationshipDirection {
   HORIZONTAL = "horizontal",
   VERTICAL = "vertical",
 }
 
+/**
+ * Represents the type of a relationship.
+ */
 export enum RelationshipType {
   PARENT = "parent",
   PARTNER = "partner",
 }
 
+/**
+ * Represents a relationship between two nodes.
+ */
 export abstract class Relationship extends CanvasObject {
+  // The unique identifier for this relationship
   id: string;
+  // The title of this relationship (e.g. "Daughter")
   displayName: string;
+  // The nodes that this relationship originates from
   fromNodes: Node[];
+  // The node that this relationship points to
   toNode: Node;
+  // The direction of the relationship (horizontal or vertical)
   direction: RelationshipDirection;
+  // The type of the relationship (parent or partner)
   type: RelationshipType;
+  // A boolean indicating whether this relationship is an ex-partner
   isEx: boolean;
 
   constructor(
@@ -629,11 +976,24 @@ export abstract class Relationship extends CanvasObject {
     this.isEx = isEx;
   }
 
+  /**
+   * NAME: calculateLayout
+   *
+   * SYNOPSIS: calculateLayout(canvasState: CanvasState, renderList: DrawableObject[])
+   *    canvasState --> the current canvas state
+   *    renderList --> the list of objects to render on the canvas
+   *
+   * DESCRIPTION: Calculates the layout for this relationship and adds it to the render list.
+   *
+   * RETURNS: void
+   */
   calculateLayout(
     { ctx, x: fromX, y: fromY }: CanvasState,
     renderList: DrawableObject[]
   ) {
+    // Parent-child relationships are black, partner relationships are red
     const lineColor = this.type === RelationshipType.PARENT ? "black" : "red";
+
     let toX = fromX;
     let toY = fromY;
     if (this.direction === RelationshipDirection.HORIZONTAL) {
@@ -694,10 +1054,15 @@ export abstract class Relationship extends CanvasObject {
     }
     return drawableRelationship;
   }
+  /* calculateLayout */
 
+  // getLength is implemented by subclasses
   abstract getLength(): number;
 }
 
+/**
+ * Represents a parent-child relationship between two nodes.
+ */
 export class ParentRelationship extends Relationship {
   constructor(id: string, displayName: string, fromNode: Node, toNode: Node) {
     super(
@@ -710,12 +1075,26 @@ export class ParentRelationship extends Relationship {
     );
   }
 
+  /**
+   * NAME: getLength
+   *
+   * SYNOPSIS: getLength(): number
+   *
+   * DESCRIPTION: Calculates the length of this relationship based on the type of relationship.
+   * Child relationships are always drawn using the spacer height.
+   *
+   * RETURNS: number
+   */
   getLength() {
     return DrawingConstants.SPACER_HEIGHT;
   }
 }
 
-// Relationship springing from a partnership (multiple parents)
+/**
+ * Represents a relationship springing from a partnership.
+ * The "fromNodes" are the two parents, with the "toNode" being
+ * their shared child.
+ */
 export class ParentsRelationship extends Relationship {
   constructor(
     id: string,
@@ -733,6 +1112,16 @@ export class ParentsRelationship extends Relationship {
     );
   }
 
+  /**
+   * NAME: getLength
+   *
+   * SYNOPSIS: getLength(): number
+   *
+   * DESCRIPTION: Calculates the length of this relationship based on the type of relationship.
+   * Parent relationships are always drawn using the spacer height and half the default height.
+   *
+   * RETURNS: number
+   */
   getLength() {
     return (
       DrawingConstants.SPACER_HEIGHT + DrawingConstants.DEFAULT_HEIGHT * 0.5
@@ -740,7 +1129,11 @@ export class ParentsRelationship extends Relationship {
   }
 }
 
+/**
+ * Represents a relationship between two partners.
+ */
 export class PartnerRelationship extends Relationship {
+  // The child relationships springing from this partnership
   childRelationships: ParentsRelationship[] = [];
 
   constructor(id: string, displayName: string, fromNode: Node, toNode: Node) {
@@ -754,7 +1147,18 @@ export class PartnerRelationship extends Relationship {
     );
   }
 
+  /**
+   * NAME: getLength
+   *
+   * SYNOPSIS: getLength(): number
+   *
+   * DESCRIPTION: Calculates the length of this relationship based on the
+   * number of children that need to be drawn below it.
+   *
+   * RETURNS: number
+   */
   getWidth() {
+    // Use default width if no children are present
     if (this.childRelationships.length === 0) {
       return DrawingConstants.DEFAULT_WIDTH;
     }
@@ -771,17 +1175,49 @@ export class PartnerRelationship extends Relationship {
 
     return childWidths + spacerWidths;
   }
+  /* getWidth */
 
+  /**
+   * NAME: getUnitWidth
+   *
+   * SYNOPSIS: getUnitWidth(): number
+   *
+   * DESCRIPTION: Calculates the width of this relationship plus the two partner nodes.
+   *
+   * RETURNS: number
+   */
   getUnitWidth() {
     return (
       this.fromNodes[0].getWidth() + this.toNode.getWidth() + this.getWidth()
     );
   }
+  /* getUnitWidth */
 
+  /**
+   * NAME: getLength
+   *
+   * SYNOPSIS: getLength(): number
+   *
+   * DESCRIPTION: Calculates the length of this relationship. For relationships, this is equal to the width.
+   *
+   * RETURNS: number
+   */
   getLength() {
     return this.getWidth();
   }
+  /* getLength */
 
+  /**
+   * NAME: calculateLayout
+   *
+   * SYNOPSIS: calculateLayout(canvasState: CanvasState, renderList: DrawableObject[])
+   *    canvasState --> the current canvas state
+   *    renderList --> the list of objects to render on the canvas
+   *
+   * DESCRIPTION: Calculates the layout for this relationship and adds it to the render list.
+   *
+   * RETURNS: void
+   */
   calculateLayout(
     { ctx, x: fromX, y: fromY }: CanvasState,
     renderList: DrawableObject[]
@@ -808,9 +1244,28 @@ export class PartnerRelationship extends Relationship {
 
     return drawableRelationship;
   }
+  /* calculateLayout */
 }
 
-// Original function for drawing rectangles
+/**
+ * NAME: drawRoundedRect
+ *
+ * SYNOPSIS: drawRoundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number, imgURL: string = "../assets/default_person.svg", borderWidth: number = DrawingConstants.LINE_WIDTH, rectColor: string = "lightgray", borderColor: string = "black")
+ *   ctx --> the rendering context for the canvas
+ *   x --> the x-coordinate of the top-left corner of the rectangle
+ *   y --> the y-coordinate of the top-left corner of the rectangle
+ *   width --> the width of the rectangle
+ *   height --> the height of the rectangle
+ *   radius --> the radius of the rounded corners
+ *   imgURL --> the URL of the image to display on the rectangle
+ *   borderWidth --> the width of the border
+ *   rectColor --> the color of the rectangle
+ *   borderColor --> the color of the border
+ *
+ * DESCRIPTION: Draws a rounded rectangle on the canvas with the provided parameters.
+ *
+ * RETURNS: void
+ */
 export const drawRoundedRect = (
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -823,30 +1278,29 @@ export const drawRoundedRect = (
   rectColor: string = "lightgray",
   borderColor: string = "black"
 ) => {
-  ctx.save(); // Save the current canvas state
+  // Save the canvas state for later restoration
+  ctx.save();
 
-  ctx.fillStyle = rectColor; // Fill color
+  ctx.fillStyle = rectColor;
+
+  // Begin path in top left corner
   ctx.beginPath();
-  ctx.moveTo(x + radius, y); // Start at the top-left corner, offset by radius
+  ctx.moveTo(x + radius, y);
 
-  // Draw the top edge
+  // Draw the top edge and top-right corner
   ctx.lineTo(x + width - radius, y);
-  // Draw the top-right corner
   ctx.arcTo(x + width, y, x + width, y + height, radius);
 
-  // Draw the right edge
+  // Draw the right edge and bottom-right corner
   ctx.lineTo(x + width, y + height - radius);
-  // Draw the bottom-right corner
   ctx.arcTo(x + width, y + height, x + width - radius, y + height, radius);
 
-  // Draw the bottom edge
+  // Draw the bottom edge and bottom-left corner
   ctx.lineTo(x + radius, y + height);
-  // Draw the bottom-left corner
   ctx.arcTo(x, y + height, x, y + height - radius, radius);
 
-  // Draw the left edge
+  // Draw the left edge and top-left corner
   ctx.lineTo(x, y + radius);
-  // Draw the top-left corner
   ctx.arcTo(x, y, x + radius, y, radius);
 
   // Close the path
@@ -860,14 +1314,31 @@ export const drawRoundedRect = (
   ctx.strokeStyle = borderColor; // Border color
   ctx.stroke();
 
-  // Render an image if a URL is provided; if this fails, use the default image
-
-  // CODE GOES HERE
-
-  ctx.restore(); // Restore the canvas state
+  // Restore the canvas state
+  ctx.restore();
 };
+/* drawRoundedRect */
 
-// Function to draw rectangle with `y` being the center and `x` as the left edge
+/**
+ * NAME: drawRoundedRectFromLeft
+ *
+ * SYNOPSIS: drawRoundedRectFromLeft(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number, imgURL: string = "../assets/default_person.svg", borderWidth: number = DrawingConstants.LINE_WIDTH, rectColor: string = "lightgray", borderColor: string = "black")
+ *   ctx --> the rendering context for the canvas
+ *   x --> the x-coordinate of the top-left corner of the rectangle
+ *   y --> the y-coordinate of the top-left corner of the rectangle
+ *   width --> the width of the rectangle
+ *   height --> the height of the rectangle
+ *   radius --> the radius of the rounded corners
+ *   imgURL --> the URL of the image to display on the rectangle
+ *   borderWidth --> the width of the border
+ *   rectColor --> the color of the rectangle
+ *   borderColor --> the color of the border
+ *
+ * DESCRIPTION: Draws a rounded rectangle on the canvas from the center-left with the provided parameters.
+ *
+ * RETURNS: void
+ */
+
 export const drawRoundedRectFromLeft = (
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -897,8 +1368,27 @@ export const drawRoundedRectFromLeft = (
     borderColor
   );
 };
+/* drawRoundedRectFromLeft */
 
-// Function to draw rectangle with `x` and `y` as the center
+/**
+ * NAME: drawRoundedRectFromCenter
+ *
+ * SYNOPSIS: drawRoundedRectFromCenter(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number, imgURL: string = "../assets/default_person.svg", borderWidth: number = DrawingConstants.LINE_WIDTH, rectColor: string = "lightgray", borderColor: string = "black")
+ *   ctx --> the rendering context for the canvas
+ *   x --> the x-coordinate of the center of the rectangle
+ *   y --> the y-coordinate of the center of the rectangle
+ *   width --> the width of the rectangle
+ *   height --> the height of the rectangle
+ *   radius --> the radius of the rounded corners
+ *   imgURL --> the URL of the image to display on the rectangle
+ *   borderWidth --> the width of the border
+ *   rectColor --> the color of the rectangle
+ *   borderColor --> the color of the border
+ *
+ * DESCRIPTION: Draws a rounded rectangle on the canvas from the center of the rectangle with the provided parameters.
+ *
+ * RETURNS: void
+ */
 export const drawRoundedRectFromCenter = (
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -925,12 +1415,33 @@ export const drawRoundedRectFromCenter = (
     borderColor
   );
 };
+/* drawRoundedRectFromCenter */
 
+/**
+ * Represents possible line styles for drawing lines on the canvas.
+ */
 enum LineStyle {
   SOLID = "solid",
   DOTTED = "dotted",
 }
 
+/**
+ * NAME: drawLine
+ *
+ * SYNOPSIS: drawLine(ctx: CanvasRenderingContext2D, fromX: number, fromY: number, toX: number, toY: number, color: string = "black", style: LineStyle = LineStyle.SOLID, lineWidth: number = DrawingConstants.LINE_WIDTH)
+ *    ctx --> the rendering context for the canvas
+ *    fromX --> the x-coordinate of the starting point
+ *    fromY --> the y-coordinate of the starting point
+ *    toX --> the x-coordinate of the ending point
+ *    toY --> the y-coordinate of the ending point
+ *    color --> the color of the line
+ *    style --> the style of the line (solid or dotted)
+ *    lineWidth --> the width of the line
+ *
+ * DESCRIPTION: Draws a line on the canvas with the provided parameters.
+ *
+ * RETURNS: void
+ */
 export const drawLine = (
   ctx: CanvasRenderingContext2D,
   fromX: number,
@@ -941,23 +1452,45 @@ export const drawLine = (
   style: LineStyle = LineStyle.SOLID,
   lineWidth: number = DrawingConstants.LINE_WIDTH // Add lineWidth parameter
 ) => {
-  ctx.save(); // Save the current canvas state
+  // Save the current canvas state for later restoration
+  ctx.save();
+
+  // Set line style, color, and width
   ctx.setLineDash(style === LineStyle.DOTTED ? [5, 5] : []); // Set line style
   ctx.strokeStyle = color;
-  ctx.lineWidth = lineWidth; // Ensure consistent line width
+  ctx.lineWidth = lineWidth;
+
+  // Draw the line
   ctx.beginPath();
   ctx.moveTo(fromX, fromY);
   ctx.lineTo(toX, toY);
   ctx.stroke();
-  ctx.restore(); // Restore the canvas state
-};
 
+  // Restore the canvas state
+  ctx.restore();
+};
+/* drawLine */
+
+/**
+ * NAME: drawObjects
+ *
+ * SYNOPSIS: drawObjects(ctx: CanvasRenderingContext2D, tree: TreeWithMembers) => DrawableObject[]
+ *    ctx --> the rendering context for the canvas
+ *    tree --> the tree to draw on the canvas
+ *
+ * DESCRIPTION: Calculates the layout of each node and creates a reusable render list.
+ * Then, draws the nodes and relationships on the canvas.
+ *
+ * RETURNS: An array of DrawableObject objects representing the nodes and relationships drawn on the canvas. This can be used to redraw the canvas with adjustments later.
+ */
 export const drawObjects = (
   ctx: CanvasRenderingContext2D,
   tree: TreeWithMembers
 ) => {
+  // Convert the tree to nodes and relationships
   const rootNode = treeToNodes(tree);
 
+  // Fill the render list starting from the above returned node
   const renderList: DrawableObject[] = [];
   if (rootNode) rootNode.calculateLayout({ ctx, x: 200, y: 150 }, renderList);
 
@@ -970,25 +1503,29 @@ export const drawObjects = (
     const isNodeA = a instanceof DrawableNode;
     const isNodeB = b instanceof DrawableNode;
 
+    // Relationships come before nodes
     if (isRelationshipA && isNodeB) {
-      return -1; // a comes before b
+      return -1;
     }
     if (isNodeA && isRelationshipB) {
-      return 1; // b comes before a
+      return 1;
     }
+
+    // Sort DrawableRelationship objects
     if (isRelationshipA && isRelationshipB) {
-      // Sort within DrawableRelationship objects
       const isPartnerA = a.relationship instanceof PartnerRelationship;
       const isPartnerB = b.relationship instanceof PartnerRelationship;
 
+      // Partner relationships come last
       if (isPartnerA && !isPartnerB) {
-        return 1; // PartnerRelationship goes last
+        return 1;
       }
       if (!isPartnerA && isPartnerB) {
-        return -1; // Non-PartnerRelationship goes first
+        return -1;
       }
     }
-    return 0; // Keep the order unchanged for other cases
+    // Any other case, the order doesn't matter
+    return 0;
   });
 
   // Add the selection box that will be updated when an object is selected
@@ -1001,29 +1538,61 @@ export const drawObjects = (
 
   return renderList;
 };
+/* drawObjects */
 
+/**
+ * NAME: redraw
+ *
+ * SYNOPSIS: redraw(ctx: CanvasRenderingContext2D, renderList: DrawableObject[]) => void
+ *   ctx --> the rendering context for the canvas
+ *   renderList --> the list of objects to redraw on the canvas
+ *
+ * DESCRIPTION: Redraws all objects in the render list given a rendering context.
+ *
+ * RETURNS: void
+ */
 export const redraw = (
   ctx: CanvasRenderingContext2D,
   renderList: DrawableObject[]
-): void => {
+) => {
   for (const obj of renderList) {
     obj.draw(ctx);
   }
 };
+/* redraw */
 
+/**
+ * NAME: isPointInsideObject
+ *
+ * SYNOPSIS: isPointInsideObject(clickPosition: { x: number; y: number }, renderList: DrawableObject[]) => DrawableObject | null
+ *    clickPosition --> the point to check if it is inside an object
+ *    renderList --> the list of objects to check if the point is inside
+ *
+ * DESCRIPTION: Determines if a point is inside a drawable object in the render list.
+ *
+ * RETURNS: The drawable object that contains the point, or null if no object contains the point.
+ */
 export function isPointInsideObject(
   clickPosition: { x: number; y: number },
   renderList: DrawableObject[]
-): DrawableObject | null {
+) {
   // Loop through the render list and check if the click position is inside any drawable object
   for (const drawable of renderList) {
     if (drawable.isInShape(clickPosition)) {
-      return drawable; // Return the object if the click is inside
+      return drawable;
     }
   }
-  return null; // Return null if no object was clicked
+  return null;
 }
+/* isPointInsideObject */
 
+/**
+ * NAME: updateSelectionBox
+ *
+ * SYNOPSIS: updateSelectionBox(selectedObject: DrawableObject | null, renderList: DrawableObject[]) => void
+ *    selectedObject --> the object that is currently selected
+ *    renderList --> the list of objects to render on the canvas
+ */
 export function updateSelectionBox(
   selectedObject: DrawableObject | null,
   renderList: DrawableObject[]
@@ -1039,7 +1608,16 @@ export function updateSelectionBox(
   selector.setSelection(selectedObject);
   eventBus.emit("updatedDrawable", selector);
 }
+/* updateSelectionBox */
 
+/**
+ * NAME: addMemberToDrawing
+ *
+ * SYNOPSIS: addMemberToDrawing(member: TreeMember, renderList: DrawableObject[], canvasState: CanvasState) => DrawableNode
+ *  member --> the tree member to add to the drawing
+ *  renderList --> the list of objects to render on the canvas
+ *  canvasState --> the current canvas state
+ */
 export function addMemberToDrawing(
   member: TreeMember,
   renderList: DrawableObject[],
@@ -1050,7 +1628,9 @@ export function addMemberToDrawing(
     { ctx: canvasState.ctx, x: canvasState.x, y: canvasState.y },
     renderList
   );
+  // Add the node to the beginning of the list so it's rendered on top
   renderList.unshift(drawableNode);
   eventBus.emit("updatedDrawable", drawableNode);
   return drawableNode;
 }
+/* addMemberToDrawing */

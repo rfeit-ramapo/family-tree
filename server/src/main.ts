@@ -4,6 +4,10 @@ import express from "express";
 import { OAuth2Client } from "google-auth-library";
 import DBManager from "./database/DBManager";
 import { DBTree, PersonDetails, TreeMember } from "./database/models/Tree";
+import multer from "multer";
+import path from "path";
+import fs from "fs/promises";
+import { v4 as uuidv4 } from "uuid";
 
 // Set up environment and initialize the app
 dotenv.config();
@@ -87,6 +91,7 @@ app.post("/api/trees/create", async (req, res) => {
   }
 });
 
+// Rename a tree for the authenticated user
 app.post("/api/trees/rename", async (req, res) => {
   const authResult = await authorizeRequestWithUser(req, res);
   req = authResult.req;
@@ -174,6 +179,7 @@ app.get("/api/tree/:treeId", async (req, res) => {
   res.status(200).json(fullTree);
 });
 
+// Fetch a person by id if the user is authorized to view it
 app.get("/api/person/:personId", async (req, res) => {
   const authResult = await authorizeOptionalRequest(req, res);
   req = authResult.req as Request<{ personId: string }>;
@@ -204,22 +210,27 @@ app.get("/api/person/:personId", async (req, res) => {
   res.status(200).json(personData);
 });
 
-import multer from "multer";
-import path from "path";
-import fs from "fs/promises";
-import { v4 as uuidv4 } from "uuid";
-
-// Storage service interface for easy switching between storage solutions
+/**
+ * Interface for a storage service that can save and delete files.
+ */
 interface StorageService {
+  // Function to save a file to storage
   saveFile(file: Express.Multer.File, fileName: string): Promise<string>;
+  // Function to delete a file from storage
   deleteFile(filePath: string): Promise<void>;
+  // Function to get the public URL of a file
   getPublicUrl(fileName: string): string;
 }
 
-// Local storage implementation
+/**
+ * Implementation of a storage service that saves files to the local filesystem.
+ * Can be replaced with a cloud storage system later.
+ */
 class LocalStorageService implements StorageService {
-  private uploadDir: string;
-  private publicPath: string;
+  // Directory to store uploads
+  uploadDir: string;
+  // URL path to access uploads
+  publicPath: string;
 
   constructor() {
     // Store files in a public directory inside your project
@@ -230,12 +241,37 @@ class LocalStorageService implements StorageService {
     fs.mkdir(this.uploadDir, { recursive: true }).catch(console.error);
   }
 
+  /**
+   * NAME: saveFile
+   *
+   * SYNOPSIS: async saveFile(file: Express.Multer.File, fileName: string): Promise<string>
+   *    file  --> the file to save
+   *    fileName  --> the name to save the file as
+   *
+   * DESCRIPTION
+   * Function to save a file to the local filesystem.
+   *
+   * RETURNS
+   * A promise that resolves to the filename the file was saved as.
+   */
   async saveFile(file: Express.Multer.File, fileName: string): Promise<string> {
     const filePath = path.join(this.uploadDir, fileName);
     await fs.writeFile(filePath, file.buffer);
     return fileName;
   }
 
+  /**
+   * NAME: deleteFile
+   *
+   * SYNOPSIS: async deleteFile(fileName: string): Promise<void>
+   *    fileName  --> the name of the file to delete
+   *
+   * DESCRIPTION
+   * Function to delete a file from the local filesystem.
+   *
+   * RETURNS
+   * A promise that resolves when the file is deleted.
+   */
   async deleteFile(fileName: string): Promise<void> {
     try {
       const filePath = path.join(this.uploadDir, path.basename(fileName));
@@ -245,6 +281,18 @@ class LocalStorageService implements StorageService {
     }
   }
 
+  /**
+   * NAME: getPublicUrl
+   *
+   * SYNOPSIS: getPublicUrl(fileName: string): string
+   *    fileName  --> the name of the file to get the URL for
+   *
+   * DESCRIPTION
+   * Function to get the public URL of a file.
+   *
+   * RETURNS
+   * The URL path to access the file.
+   */
   getPublicUrl(fileName: string): string {
     // Return the URL path to access the file
     return `${this.publicPath}/${fileName}`;
@@ -255,7 +303,8 @@ class LocalStorageService implements StorageService {
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
+    // Limit the fileSize to 5MB
+    fileSize: 5 * 1024 * 1024,
   },
   fileFilter: (_req, file, callback) => {
     const allowedMimes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
@@ -349,6 +398,7 @@ app.post(
   }
 );
 
+// Remove an image from a person record
 app.post("/api/remove-image/:personId", async (req, res): Promise<void> => {
   // Verify authentication
   const authResult = await authorizeRequestWithUser(req, res);
@@ -576,6 +626,7 @@ app.get("/api/suggestions/:originId/:type", async (req, res) => {
   }
 });
 
+// Get people for a particular tree
 app.get("/api/tree/get-people/:treeId", async (req, res) => {
   const authResult = await authorizeOptionalRequest(req, res);
   req = authResult.req as Request<{ treeId: string }>;
@@ -685,6 +736,7 @@ app.post(
   }
 );
 
+// Toggle the visibility of a tree
 app.post("/api/tree/toggle-public/:treeId", async (req, res) => {
   const authResult = await authorizeRequestWithUser(req, res);
   req = authResult.req as Request<{ treeId: string }>;
@@ -754,14 +806,15 @@ app.post("/api/person/remove/:personId", async (req, res) => {
   }
 });
 
+// Start the server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
 
+// Log the database connection on startup
 async function logDBConnection() {
   console.log(
     await DBManager.driver.getServerInfo({ database: DBManager.db_name })
   );
 }
-
 logDBConnection();

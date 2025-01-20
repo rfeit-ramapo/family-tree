@@ -1,9 +1,15 @@
+/** This component shows an overlay and modal prompting the user to jump to
+another location in the tree. The user can type in a name to filter the
+suggestions, and select a suggestion to jump to that person. */
+
 <template lang="pug">
+  // Clicking outside the modal or hitting escape cancels the action
   div.overlay(@click.self="cancel")
   div.jump-to-person(
     @keydown.esc="cancel"
     tabindex="0"
   )
+    // List item for typing in a name to filter suggestions
     li#item-input(
       :contentEditable="true",
       @input="filterSuggestions",
@@ -12,6 +18,7 @@
       @keydown.tab="moveToNextSuggestion",
       @keydown.esc="cancel"
     )
+    // List of suggestions to jump to
     ul.suggestion-box(
      v-if="suggestions.length > 0"
     )
@@ -30,6 +37,7 @@ import type { TreeMember } from "@/helpers/treeToNodes";
 export default defineComponent({
   name: "JumpToPerson",
   props: {
+    // The ID of the tree to search for people in
     treeId: {
       type: String,
       required: true,
@@ -38,10 +46,29 @@ export default defineComponent({
   emits: ["close", "select"],
 
   setup(props, { emit }) {
+    // Reactive variables
+
+    // List of suggestions to jump to
     const suggestions: Ref<TreeMember[]> = ref([]);
+    // Index of the currently active suggestion
     const activeIndex = ref(-1);
 
+    /*
+    NAME
+      fetchSuggestions - fetches suggestions for the displayed list
+
+    SYNOPSIS
+      () => Promise<void>
+
+    DESCRIPTION
+      This function fetches suggestions for the displayed list from the server
+      and updates the suggestions and activeIndex variables.
+
+    RETURNS
+      A Promise<void> that resolves when the suggestions are fetched.
+    */
     const fetchSuggestions = async () => {
+      // Try to get suggestions from the server
       try {
         const token = localStorage.getItem("token");
         const headers = {
@@ -52,21 +79,40 @@ export default defineComponent({
           method: "GET",
           headers,
         });
-
         if (!response.ok) {
           throw new Error("Failed to fetch suggestions");
         }
 
+        // Update the suggestions and activeIndex variables
         suggestions.value = await response.json();
+        // If there are suggestions, set the active index to the first suggestion
         activeIndex.value = suggestions.value.length > 0 ? 0 : -1;
       } catch (error) {
         console.error(error);
+        // Close the component on an error
         emit("close", error);
       }
     };
 
+    /*
+    NAME
+      formatSuggestion - formats a suggestion for display
+
+    SYNOPSIS
+      (suggestion: TreeMember) => string
+          suggestion   -->  the suggestion to format
+
+    DESCRIPTION
+      This function formats a suggestion for display in the suggestion list.
+      It includes the person's name and date of birth if available.
+
+    RETURNS
+      A string representing the formatted suggestion.
+    */
     const formatSuggestion = (suggestion: TreeMember) => {
       let sugString = "Unnamed Person";
+
+      // Replace default string with the name if available
       if (
         suggestion.firstName ||
         suggestion.lastName ||
@@ -74,6 +120,8 @@ export default defineComponent({
       ) {
         sugString = `${suggestion.firstName ?? ""} ${suggestion.middleName ?? ""} ${suggestion.lastName ?? ""}`;
       }
+
+      // Add date of birth if available
       if (suggestion.dateOfBirth) {
         const year = (suggestion.dateOfBirth as any).year;
         const month = String((suggestion.dateOfBirth as any).month).padStart(
@@ -89,25 +137,30 @@ export default defineComponent({
       return sugString;
     };
 
+    // Selects the suggestion at the given index and emits a select event
     const selectSuggestion = (index: number) => {
       if (index >= 0 && index < suggestions.value.length) {
         emit("select", suggestions.value[index]);
       }
     };
 
+    // Filters the suggestions based on the input text
     const filterSuggestions = () => {
       const input = document.getElementById("item-input") as HTMLElement;
       const query = input?.innerText.toLowerCase() || "";
       suggestions.value = suggestions.value.filter((person) =>
         person.firstName?.toLowerCase().includes(query)
       );
+      // Reset active index to the first suggestion (if available)
       activeIndex.value = suggestions.value.length ? 0 : -1;
     };
 
+    // Canceling emits a close event to the parent component
     const cancel = () => {
       emit("close", "cancel");
     };
 
+    // On mount, load the suggestions and focus the input field
     onMounted(() => {
       fetchSuggestions();
       const input = document.getElementById("item-input");
